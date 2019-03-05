@@ -246,8 +246,13 @@ void main() {
     next_cell = last_cell;
 
     hue_vec = next_cell.gb;
-    saturation = 1.0;
-    lightness = 0.84;
+    if (next_cell.r == 0) {
+      saturation = 0.0;
+      lightness = 0.64;
+    } else {
+      saturation = 1.0;
+      lightness = 0.84;
+    }
   } else if (
     ((coord.x == center.x - entropy_dist || coord.x == center.x + entropy_dist) &&
       coord.y >= center.y - entropy_dist && coord.y <= center.y + entropy_dist) ||
@@ -259,8 +264,13 @@ void main() {
     next_cell = texelFetch(u_entropy, coord, 0);
 
     hue_vec = next_cell.gb;
-    saturation = 0.6;
-    lightness = 0.2;
+    if (next_cell.r == 0) {
+      saturation = 0.0;
+      lightness = 0.05;
+    } else {
+      saturation = 0.6;
+      lightness = 0.2;
+    }
   } else {
     // we're outside the universe, nothing to see here, move along.
     next_cell = ivec4(0);
