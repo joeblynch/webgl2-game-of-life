@@ -13,16 +13,19 @@ let _quad;
 let _vao;
 let _stateWidth;
 let _stateHeight;
-let _generation = 0;
-let _speed = -6;
+let _generation = -1;
+let _speed = -5 ;
 let _running = true;
+let _lastFPSUpdate = 0;
+let _fps = 0;
+const _fpsEl = document.getElementById('fps');
 
 (async function main() {
   await init();
 
   let frame = 0;
 
-  requestAnimationFrame(function render() {
+  requestAnimationFrame(function render(now) {
     requestAnimationFrame(render);
 
     if (!_running) {
@@ -33,12 +36,21 @@ let _running = true;
     if (_speed < 0) {
       if (frame % -_speed === 0) {
         step();
+        _fps++;
       }
     } else {
       // start at -1 so that we always do an extra step. otherwise 1 step for speed -1 and speed 0.
       for (let i = -1; i <= _speed; i++) {
         step();
+        _fps++;
       }
+    }
+
+    if (now - 1000 >= _lastFPSUpdate) {
+      _fpsEl.innerText = _fps;
+
+      _lastFPSUpdate = now;
+      _fps = 0;
     }
 
     draw();
@@ -66,7 +78,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 function step() {
-  const backIndex = _generation % 2;
+  const backIndex = Math.max(0, _generation % 2);
   const frontIndex = (_generation + 1) % 2;
 
   _offscreen.colorTarget(0, _textures.state[frontIndex])
@@ -95,9 +107,9 @@ function draw() {
 function reset() {
   _running = false;
   setTimeout(() => {
-    _generation = 0;
+    _generation = -1;
     const initialState = generateRandomState(_stateWidth, _stateHeight);
-    _textures.state[0].data([initialState]);
+    _textures.entropy.data([initialState]);
     // _textures.state[1].data(new Int8Array(_stateHeight * _stateWidth * CELL_STATE_BYTES));
     // _textures.history.data(new Uint32Array(_stateHeight * _stateWidth));
     // _textures.oscCount[0].data(new Uint8Array(_stateHeight * _stateWidth * CELL_OSC_COUNT_BYTES));

@@ -10,10 +10,20 @@
       body {
         background-color: #000;
       }
+
+      #fps {
+        position: absolute;
+        right: 10px;
+        bottom: 10px;
+        color: #af0;
+        font-family: 'Menlo', monospace;
+        font-size: 12px;
+      }
     </style>
   </head>
   <body>
     <canvas id="c"></canvas>
+    <div id="fps"></div>
     <!-- <script src="lib/picogl.min.js"></script> -->
     <script src="lib/picogl.js"></script>
     <script src="main.js"></script>
