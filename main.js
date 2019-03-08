@@ -105,16 +105,42 @@ function draw() {
 }
 
 function reset() {
-  _running = false;
-  setTimeout(() => {
-    _generation = -1;
-    const initialState = generateRandomState(_stateWidth, _stateHeight);
-    _textures.entropy.data([initialState]);
-    // _textures.state[1].data(new Int8Array(_stateHeight * _stateWidth * CELL_STATE_BYTES));
-    // _textures.history.data(new Uint32Array(_stateHeight * _stateWidth));
-    // _textures.oscCount[0].data(new Uint8Array(_stateHeight * _stateWidth * CELL_OSC_COUNT_BYTES));
-    _running = true;
-  },500);
+  _generation = -1;
+
+  const entropy = generateRandomState(_stateWidth, _stateHeight);
+
+  _textures.entropy.delete();
+  _textures.entropy = _app.createTexture2D(entropy, _stateWidth, _stateHeight, {
+    internalFormat: PicoGL.RGBA8I,
+    format: PicoGL.RGBA_INTEGER,
+    type: PicoGL.BYTE,
+    minFilter: PicoGL.NEAREST,
+    magFilter: PicoGL.NEAREST
+  });
+
+  // _textures.entropy.data([initialState]);
+  // _textures.state[1].data(new Int8Array(_stateHeight * _stateWidth * CELL_STATE_BYTES));
+  // _textures.history.data(new Uint32Array(_stateHeight * _stateWidth));
+  // _textures.oscCount[0].data(new Uint8Array(_stateHeight * _stateWidth * CELL_OSC_COUNT_BYTES));
+}
+
+function hasActiveCells() {
+  const { PicoGL } = window;
+  const { gl } = _app;
+  const { framebuffer } = _offscreen;
+
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, framebuffer);
+  gl.readBuffer(gl.COLOR_ATTACHMENT2);
+  gl.readPixels(0, 0, _stateWidth, _stateHeight, PicoGL.RGBA_INTEGER, PicoGL.UNSIGNED_BYTE, _oscCounts);
+
+  // _oscCounts32 is a uint32 view of the uint8 _oscCounts buffer, quicker to search through
+  for (let i = 0, l = _oscCounts32.length; i < l; i++) {
+    if (_oscCounts32[i] === 0) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 async function loadShaderSource(filename) {
@@ -156,9 +182,9 @@ async function init() {
   _programs.golStep = _app.createProgram(quadVertShader, await loadShaderSource('gol-step.frag'));
   _programs.screen = _app.createProgram(quadVertShader, await loadShaderSource('screen.frag'));
 
-  const initialState = generateRandomState(_stateWidth, _stateHeight);
+  const entropy = generateRandomState(_stateWidth, _stateHeight);
 
-  _textures.entropy = _app.createTexture2D(initialState, _stateWidth, _stateHeight, {
+  _textures.entropy = _app.createTexture2D(entropy, _stateWidth, _stateHeight, {
     internalFormat: PicoGL.RGBA8I,
     format: PicoGL.RGBA_INTEGER,
     type: PicoGL.BYTE,
