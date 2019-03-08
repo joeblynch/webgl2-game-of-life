@@ -171,12 +171,15 @@ void main() {
 
     // calculate existance
     int neighbors = nw.r + n.r + ne.r + w.r + e.r + sw.r + s.r + se.r;
+    // next_cell.r = int(neighbors == 3) | int(neighbors == 4) | (int(neighbors == 2) & last_cell.r);
+    // next_cell.r = int(neighbors == 3) | int(neighbors == 1) | (int(neighbors == 2) & last_cell.r);
+    // next_cell.r = int(neighbors == 3) | int(neighbors == 5) | (int(neighbors == 2) & last_cell.r);
     next_cell.r = int(neighbors == 3) | (int(neighbors == 2) & last_cell.r);
 
     // update history
     next_history.r = last_history.r << 1 | uint(next_cell.r);
 
-    // count oscillatorsl
+    // count oscillators
     // NOTE: best oscilator search expects increasing P value
     next_osc_count[0] = getOscCount(next_history.r, uint(1), last_osc_count[0]);
     next_osc_count[1] = getOscCount(next_history.r, uint(2), last_osc_count[1]);
@@ -200,23 +203,23 @@ void main() {
     hue_vec = last_cell.gb;
 
     if (next_cell.r == 1) {
-      if (best_p == uint(0)) {
-        if ((last_history.r & uint(1)) == uint(0)) {
-          // cell is newly on, so it inherits it's color from it's parents
-          // calculate new hue vector by summing hue vectors of alive neighbors
-          hue_vec = ivec2(normalize(vec2(
-            nw.r * nw.gb + n.r * n.gb + ne.r * ne.gb +
-            w.r  *  w.gb +               e.r *  e.gb +
-            sw.r * sw.gb + s.r * s.gb + se.r * se.gb
-          )) * 127.0);
-        }
+      if ((last_history.r & uint(1)) == uint(0)) {
+        // cell is newly on, so it inherits it's color from it's parents
+        // calculate new hue vector by summing hue vectors of alive neighbors
+        hue_vec = ivec2(normalize(vec2(
+          nw.r * nw.gb + n.r * n.gb + ne.r * ne.gb +
+          w.r  *  w.gb +               e.r *  e.gb +
+          sw.r * sw.gb + s.r * s.gb + se.r * se.gb
+        )) * 127.0);
+      }
 
+      if (best_p == uint(0)) {
         // no osc match, so this is an active cell
         uint recent = last_history.r & uint(3);
         saturation = SATURATION[recent];
         lightness = LIGHTNESS[recent];
       } else {
-        // oscillators don't inherit their hue, instead it's shifted at a speed relative to its P value
+        // oscillators are hue shifted at a speed relative to its P value
         if (best_p > uint(1)) {
           hue_shift = HUE_SHIFT_P_FACTOR * (float(best_p) - 1.0);
         }
@@ -231,8 +234,8 @@ void main() {
       float p1_factor = min(1.0, float(next_osc_count[0]) / 255.0 * 4.0);
       float p1_ease_out = p1_factor * (2.0 - p1_factor);
       // cell_color = vec4(0.06, 0.06, 0.06, 1.0);
-      saturation = mix(0.8, SATURATION_OFF, p1_ease_out);
-      lightness = mix(0.15, LIGHTNESS_OFF, p1_ease_out);
+      saturation = mix(0.8, SATURATION_OFF, p1_ease_out * 0.84);
+      lightness = mix(0.14, LIGHTNESS_OFF, p1_ease_out * 0.84);
     }
   } else if (
     ((coord.x == center.x - horizon_dist || coord.x == center.x + horizon_dist) &&

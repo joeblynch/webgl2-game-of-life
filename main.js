@@ -8,17 +8,20 @@ let _app;
 const _programs = {};
 const _drawCalls = {};
 const _textures = {};
+let _oscCounts;
+let _oscCounts32;
 let _offscreen;
 let _quad;
 let _vao;
 let _stateWidth;
 let _stateHeight;
 let _generation = -1;
-let _speed = -5 ;
+let _speed = -5;
 let _running = true;
 let _lastFPSUpdate = 0;
 let _fps = 0;
 const _fpsEl = document.getElementById('fps');
+const _genEl = document.getElementById('gen');
 
 (async function main() {
   await init();
@@ -46,14 +49,20 @@ const _fpsEl = document.getElementById('fps');
       }
     }
 
+    _genEl.innerText = _generation;
+
+    draw();
+
     if (now - 1000 >= _lastFPSUpdate) {
       _fpsEl.innerText = _fps;
 
       _lastFPSUpdate = now;
       _fps = 0;
-    }
 
-    draw();
+      if (!hasActiveCells()) {
+        reset();
+      }
+    }
   });
 })();
 
@@ -79,7 +88,7 @@ document.addEventListener('keydown', (e) => {
 
 function step() {
   const backIndex = Math.max(0, _generation % 2);
-  const frontIndex = (_generation + 1) % 2;
+  const frontIndex = (backIndex + 1) % 2;
 
   _offscreen.colorTarget(0, _textures.state[frontIndex])
   _offscreen.colorTarget(1, _textures.history)
@@ -105,16 +114,31 @@ function draw() {
 }
 
 function reset() {
-  _running = false;
-  setTimeout(() => {
-    _generation = -1;
-    const initialState = generateRandomState(_stateWidth, _stateHeight);
-    _textures.entropy.data([initialState]);
-    // _textures.state[1].data(new Int8Array(_stateHeight * _stateWidth * CELL_STATE_BYTES));
-    // _textures.history.data(new Uint32Array(_stateHeight * _stateWidth));
-    // _textures.oscCount[0].data(new Uint8Array(_stateHeight * _stateWidth * CELL_OSC_COUNT_BYTES));
-    _running = true;
-  },500);
+  _generation = -1;
+  const initialState = generateRandomState(_stateWidth, _stateHeight);
+  _textures.entropy.data([initialState]);
+  // _textures.state[1].data(new Int8Array(_stateHeight * _stateWidth * CELL_STATE_BYTES));
+  // _textures.history.data(new Uint32Array(_stateHeight * _stateWidth));
+  // _textures.oscCount[0].data(new Uint8Array(_stateHeight * _stateWidth * CELL_OSC_COUNT_BYTES));
+}
+
+function hasActiveCells() {
+  const { PicoGL } = window;
+  const { gl } = _app;
+  const { framebuffer } = _offscreen;
+
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, framebuffer);
+  gl.readBuffer(gl.COLOR_ATTACHMENT2);
+  gl.readPixels(0, 0, _stateWidth, _stateHeight, PicoGL.RGBA_INTEGER, PicoGL.UNSIGNED_BYTE, _oscCounts);
+
+  // _oscCounts32 is a uint32 view of the uint8 _oscCounts buffer, quicker to search through
+  for (let i = 0, l = _oscCounts32.length; i < l; i++) {
+    if (_oscCounts32[i] === 0) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 async function loadShaderSource(filename) {
@@ -125,8 +149,8 @@ async function loadShaderSource(filename) {
 async function init() {
   const { PicoGL } = window;
   const { width: displayWidth, height: displayHeight } = screen;
-  const width = displayWidth;// * window.devicePixelRatio;
-  const height = displayHeight;// * window.devicePixelRatio;
+  const width = displayWidth; // * window.devicePixelRatio;
+  const height = displayHeight; // * window.devicePixelRatio;
   _stateWidth = Math.floor(width / CELL_SIZE);
   _stateHeight = Math.floor(height / CELL_SIZE);
 
@@ -156,12 +180,12 @@ async function init() {
   _programs.golStep = _app.createProgram(quadVertShader, await loadShaderSource('gol-step.frag'));
   _programs.screen = _app.createProgram(quadVertShader, await loadShaderSource('screen.frag'));
 
-  const initialState = generateRandomState(_stateWidth, _stateHeight);
+  const entropy = generateRandomState(_stateWidth, _stateHeight);
 
-  _textures.entropy = _app.createTexture2D(initialState, _stateWidth, _stateHeight, {
-    internalFormat: PicoGL.RGBA8I,
+  _textures.entropy = _app.createTexture2D(entropy, _stateWidth, _stateHeight, {
+    internalFormat: PicoGL.RGBA8UI,
     format: PicoGL.RGBA_INTEGER,
-    type: PicoGL.BYTE,
+    type: PicoGL.UNSIGNED_BYTE,
     minFilter: PicoGL.NEAREST,
     magFilter: PicoGL.NEAREST
   });
@@ -204,6 +228,9 @@ async function init() {
     })
   ];
 
+  _oscCounts = new Uint8Array(_stateWidth * _stateHeight * 4);
+  _oscCounts32 = new Uint32Array(_oscCounts.buffer)
+
   _textures.cellColors = _app.createTexture2D(_stateWidth, _stateHeight, {
     minFilter: PicoGL.NEAREST,
     magFilter: PicoGL.NEAREST
@@ -225,8 +252,8 @@ function cleanup() {
 
 function generateRandomState(width, height) {
   const length = width * height * CELL_STATE_BYTES;
-  const state = new Int8Array(length);
-  const randBuffer = new Int8Array(MAX_ENTROPY);
+  const state = new Uint8Array(length);
+  const randBuffer = new Uint8Array(MAX_ENTROPY);
   let remaining = length;
 
   // keep requesting random data until we've filled the state
