@@ -8,17 +8,20 @@ let _app;
 const _programs = {};
 const _drawCalls = {};
 const _textures = {};
+let _oscCounts;
+let _oscCounts32;
 let _offscreen;
 let _quad;
 let _vao;
 let _stateWidth;
 let _stateHeight;
 let _generation = -1;
-let _speed = -5 ;
+let _speed = -5;
 let _running = true;
 let _lastFPSUpdate = 0;
 let _fps = 0;
 const _fpsEl = document.getElementById('fps');
+const _genEl = document.getElementById('gen');
 
 (async function main() {
   await init();
@@ -46,14 +49,20 @@ const _fpsEl = document.getElementById('fps');
       }
     }
 
+    _genEl.innerText = _generation;
+
+    draw();
+
     if (now - 1000 >= _lastFPSUpdate) {
       _fpsEl.innerText = _fps;
 
       _lastFPSUpdate = now;
       _fps = 0;
-    }
 
-    draw();
+      if (!hasActiveCells()) {
+        reset();
+      }
+    }
   });
 })();
 
@@ -79,7 +88,7 @@ document.addEventListener('keydown', (e) => {
 
 function step() {
   const backIndex = Math.max(0, _generation % 2);
-  const frontIndex = (_generation + 1) % 2;
+  const frontIndex = (backIndex + 1) % 2;
 
   _offscreen.colorTarget(0, _textures.state[frontIndex])
   _offscreen.colorTarget(1, _textures.history)
@@ -151,8 +160,8 @@ async function loadShaderSource(filename) {
 async function init() {
   const { PicoGL } = window;
   const { width: displayWidth, height: displayHeight } = screen;
-  const width = displayWidth;// * window.devicePixelRatio;
-  const height = displayHeight;// * window.devicePixelRatio;
+  const width = displayWidth; // * window.devicePixelRatio;
+  const height = displayHeight; // * window.devicePixelRatio;
   _stateWidth = Math.floor(width / CELL_SIZE);
   _stateHeight = Math.floor(height / CELL_SIZE);
 
@@ -229,6 +238,9 @@ async function init() {
       magFilter: PicoGL.NEAREST
     })
   ];
+
+  _oscCounts = new Uint8Array(_stateWidth * _stateHeight * 4);
+  _oscCounts32 = new Uint32Array(_oscCounts.buffer)
 
   _textures.cellColors = _app.createTexture2D(_stateWidth, _stateHeight, {
     minFilter: PicoGL.NEAREST,
