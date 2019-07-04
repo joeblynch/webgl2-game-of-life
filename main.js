@@ -150,6 +150,7 @@ document.addEventListener('keydown', (e) => {
       break;
     case 82:  // r
       reset();
+    case 61: // + (win on FF?)
     case 187: // +
       if (e.shiftKey) {
         _cellSize++;
@@ -157,6 +158,7 @@ document.addEventListener('keydown', (e) => {
         reset();
       }
       break;
+    case 173: // + (win on FF?)
     case 189: // -
     if (e.shiftKey && _cellSize > 1) {
       _cellSize--;
@@ -173,11 +175,11 @@ function step() {
   const backIndex = Math.max(0, _generation % 2);
   const frontIndex = (backIndex + 1) % 2;
 
-  _offscreen.colorTarget(0, _textures.state[frontIndex])
-  _offscreen.colorTarget(1, _textures.history)
-  _offscreen.colorTarget(2, _textures.oscCount[0])
+  _offscreen.colorTarget(0, _textures.state[frontIndex]);
+  _offscreen.colorTarget(1, _textures.history[frontIndex]);
+  _offscreen.colorTarget(2, _textures.oscCounts[0][frontIndex]);
   _offscreen.colorTarget(3, _textures.cellColors);
-  _offscreen.colorTarget(4, _textures.oscCount[1])
+  _offscreen.colorTarget(4, _textures.oscCounts[1][frontIndex]);
   _app.drawFramebuffer(_offscreen);
 
   _drawCalls.golStep.uniform('u_generation', _generation);
@@ -186,10 +188,10 @@ function step() {
   _drawCalls.golStep.uniform('u_lightness_on', _lightness_on);
   _drawCalls.golStep.uniform('u_lightness_off', _lightness_off);
   _drawCalls.golStep.texture('u_state', _textures.state[backIndex]);
-  _drawCalls.golStep.texture('u_history', _textures.history);
+  _drawCalls.golStep.texture('u_history', _textures.history[backIndex]);
   _drawCalls.golStep.texture('u_entropy', _textures.entropy);
-  _drawCalls.golStep.texture('u_osc_count_1', _textures.oscCount[0]);
-  _drawCalls.golStep.texture('u_osc_count_2', _textures.oscCount[1]);
+  _drawCalls.golStep.texture('u_osc_count_1', _textures.oscCounts[0][backIndex]);
+  _drawCalls.golStep.texture('u_osc_count_2', _textures.oscCounts[1][backIndex]);
   _drawCalls.golStep.draw();
 
   _generation++;
@@ -308,8 +310,9 @@ async function init(reinit = false) {
   if (reinit) {
     _textures.entropy.delete();
     // _textures.state.forEach(state => state.delete());
-    _textures.history.delete();
-    _textures.oscCount.forEach(oscCount => oscCount.delete());
+    _textures.history[0].delete();
+    _textures.history[1].delete();
+    _textures.oscCounts.forEach(oscCounts => oscCounts.forEach(oscCount => oscCount.delete()));
     _textures.cellColors.delete();
   }
 
@@ -321,27 +324,23 @@ async function init(reinit = false) {
     magFilter: PicoGL.NEAREST
   });
 
+  const createStateTexture = () => _app.createTexture2D(_stateWidth, _stateHeight, {
+    internalFormat: PicoGL.RGBA8I,
+    format: PicoGL.RGBA_INTEGER,
+    type: PicoGL.BYTE,
+    minFilter: PicoGL.NEAREST,
+    magFilter: PicoGL.NEAREST
+  });
+
   _textures.state = [
     // random back buffer
-    _app.createTexture2D(_stateWidth, _stateHeight, {
-      internalFormat: PicoGL.RGBA8I,
-      format: PicoGL.RGBA_INTEGER,
-      type: PicoGL.BYTE,
-      minFilter: PicoGL.NEAREST,
-      magFilter: PicoGL.NEAREST
-    }),
+    createStateTexture(),
 
     // empty front buffer
-    _app.createTexture2D(_stateWidth, _stateHeight, {
-      internalFormat: PicoGL.RGBA8I,
-      format: PicoGL.RGBA_INTEGER,
-      type: PicoGL.BYTE,
-      minFilter: PicoGL.NEAREST,
-      magFilter: PicoGL.NEAREST
-    })
+    createStateTexture()
   ];
 
-  _textures.history = _app.createTexture2D(_stateWidth, _stateHeight, {
+  const createHistoryTexture = () => _app.createTexture2D(_stateWidth, _stateHeight, {
     internalFormat: PicoGL.R32UI,
     format: PicoGL.RGBA_INTEGER,
     type: PicoGL.UNSIGNED_INT,
@@ -349,21 +348,19 @@ async function init(reinit = false) {
     magFilter: PicoGL.NEAREST
   });
 
-  _textures.oscCount = [
-    _app.createTexture2D(_stateWidth, _stateHeight, {
-      internalFormat: PicoGL.RGBA8UI,
-      format: PicoGL.RGBA_INTEGER,
-      type: PicoGL.UNSIGNED_BYTE,
-      minFilter: PicoGL.NEAREST,
-      magFilter: PicoGL.NEAREST
-    }),
-    _app.createTexture2D(_stateWidth, _stateHeight, {
-      internalFormat: PicoGL.RGBA8UI,
-      format: PicoGL.RGBA_INTEGER,
-      type: PicoGL.UNSIGNED_BYTE,
-      minFilter: PicoGL.NEAREST,
-      magFilter: PicoGL.NEAREST
-    })
+  _textures.history = [createHistoryTexture(), createHistoryTexture()];
+
+  const createOscCountTexture = () => _app.createTexture2D(_stateWidth, _stateHeight, {
+    internalFormat: PicoGL.RGBA8UI,
+    format: PicoGL.RGBA_INTEGER,
+    type: PicoGL.UNSIGNED_BYTE,
+    minFilter: PicoGL.NEAREST,
+    magFilter: PicoGL.NEAREST
+  });
+
+  _textures.oscCounts = [
+    [createOscCountTexture(), createOscCountTexture()],
+    [createOscCountTexture(), createOscCountTexture()]
   ];
 
   _oscCounts_1 = new Uint8Array(_stateWidth * _stateHeight * 4);
