@@ -32,12 +32,29 @@
         font-family: 'Menlo', monospace;
         font-size: 12px;
       }
+
+      #active {
+        position: absolute;
+        right: 150px;
+        bottom: 10px;
+        color: #af0;
+        font-family: 'Menlo', monospace;
+        font-size: 12px;
+      }
     </style>
   </head>
   <body>
     <canvas id="c"></canvas>
     <div id="fps"></div>
     <div id="gen"></div>
+    <div id="active"></div>
+    <!-- <div id="gauge">
+      <div id="gauge-label"></div>
+      <div id="gauge-meter-container">
+        <div id="gauge-meter"></div>
+      </div>
+      <div id="gauge-value"></div>
+    </div> -->
     <!-- <script src="lib/picogl.min.js"></script> -->
     <script src="lib/picogl.js"></script>
     <script src="main.js"></script>

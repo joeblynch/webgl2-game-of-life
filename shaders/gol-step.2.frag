@@ -5,10 +5,6 @@ precision mediump isampler2D;
 precision mediump usampler2D;
 
 uniform int u_generation;
-uniform float u_saturation_on;
-uniform float u_saturation_off;
-uniform float u_lightness_on;
-uniform float u_lightness_off;
 uniform isampler2D u_state;
 uniform usampler2D u_history;
 uniform isampler2D u_entropy;
@@ -30,8 +26,6 @@ const uint MIN_OSC_LEN = uint(8);
 const uint MAX_OSC_COUNT[5] = uint[5](uint(0), uint(255), uint(127), uint(84), uint(62));
 
 const float HUE_SHIFT_P_FACTOR = 2.0;
-
-// TODO: adjustable global brightsness, and adijustment at each level inc. off
 
 const float SATURATION[4] = float[4](
   0.98, // 001
@@ -65,12 +59,6 @@ const float LIGHTNESS_OSC[5] = float[5](
 
 const float SATURATION_OFF = 0.40;
 const float LIGHTNESS_OFF = 0.04;
-
-// multipliers so that (max saturation/lightness * SATURATION_SCALE * u_saturation_on) == 1 when u_saturation_on == 1
-const float SATURATION_ON_SCALE = 1.0 / SATURATION[0];
-const float SATURATION_OFF_SCALE = 1.0 / SATURATION_OFF;
-const float LIGHTNESS_ON_SCALE = 1.0 / LIGHTNESS[0];
-const float LIGHTNESS_OFF_SCALE = 1.0 / LIGHTNESS_OFF;
 
 // hsl convert functions from here: https://github.com/Jam3/glsl-hsl2rgb/blob/master/index.glsl
 float hue2rgb(float f1, float f2, float hue) {
@@ -193,73 +181,72 @@ void main() {
     next_cell.r = int(neighbors == 3) | (int(neighbors == 2) & last_cell.r);
 
     // update history
-    next_history.r = last_history.r << 1 | uint(next_cell.r);
+    uint history = next_history.r = last_history.r << 1 | uint(next_cell.r);
 
     // count oscillators
     // NOTE: best oscilator search expects increasing P value
-    next_osc_count_1[0] = getOscCount(next_history.r, uint(1), last_osc_count_1[0]);
-    next_osc_count_1[1] = getOscCount(next_history.r, uint(2), last_osc_count_1[1]);
-    next_osc_count_1[2] = getOscCount(next_history.r, uint(3), last_osc_count_1[2]);
-    next_osc_count_1[3] = getOscCount(next_history.r, uint(4), last_osc_count_1[3]);
-    next_osc_count_2[0] = getOscCount(next_history.r, uint(15), last_osc_count_2[0]);
-    // next_osc_count_2[1] = getOscCount(next_history.r, uint(6), last_osc_count_2[1]);
+    next_osc_count_1[0] = getOscCount(history, uint(1), last_osc_count_1[0]);
+    next_osc_count_1[1] = getOscCount(history, uint(2), last_osc_count_1[1]);
+    next_osc_count_1[2] = getOscCount(history, uint(3), last_osc_count_1[2]);
+    next_osc_count_1[3] = getOscCount(history, uint(4), last_osc_count_1[3]);
+    next_osc_count_2[0] = getOscCount(history, uint(8), last_osc_count_2[0]);
+    next_osc_count_2[1] = getOscCount(history, uint(15), last_osc_count_2[1]);
     // next_osc_count_2[2] = getOscCount(next_history.r, uint(3), last_osc_count_2[2]);
     // next_osc_count_2[3] = getOscCount(next_history.r, uint(4), last_osc_count_2[3]);
 
-    // find best oscillator
-    uint max_len = uint(0);
-    uint best_p = uint(0);
+    // // find best oscillator
+    // uint max_len = uint(0);
+    // uint best_p = uint(0);
 
-    for (uint i = uint(0); i < uint(4); i++) {
-      uint period = i + uint(1);
-      uint len = next_osc_count_1[i];
-      if (len > max_len && len >= MIN_OSC_LEN) {
-        max_len = len;
-        best_p = period;
-      }
-    }
+    // for (uint i = uint(0); i < uint(4); i++) {
+    //   uint period = i + uint(1);
+    //   uint len = next_osc_count_1[i];
+    //   if (len > max_len && len >= MIN_OSC_LEN) {
+    //     max_len = len;
+    //     best_p = period;
+    //   }
+    // }
 
-    // determine color
-    hue_vec = last_cell.gb;
+    // // determine color
+    // hue_vec = last_cell.gb;
 
-    if (next_cell.r == 1) {
-      float saturation_scale = SATURATION_ON_SCALE * u_saturation_on;
-      float lightness_scale = LIGHTNESS_ON_SCALE * u_lightness_on;
+    cell_color_out = vec4(0.0, 0.0, float(next_cell.r == 1), 1.0);
 
-      if ((last_history.r & uint(1)) == uint(0)) {
-        // cell is newly on, so it inherits it's color from it's parents
-        // calculate new hue vector by summing hue vectors of alive neighbors
-        hue_vec = ivec2(normalize(vec2(
-          nw.r * nw.gb + n.r * n.gb + ne.r * ne.gb +
-          w.r  *  w.gb +               e.r *  e.gb +
-          sw.r * sw.gb + s.r * s.gb + se.r * se.gb
-        )) * 127.0);
-      }
+    // if (next_cell.r == 1) {
+    //   if ((last_history.r & uint(1)) == uint(0)) {
+    //     // cell is newly on, so it inherits it's color from it's parents
+    //     // calculate new hue vector by summing hue vectors of alive neighbors
+    //     hue_vec = ivec2(normalize(vec2(
+    //       nw.r * nw.gb + n.r * n.gb + ne.r * ne.gb +
+    //       w.r  *  w.gb +               e.r *  e.gb +
+    //       sw.r * sw.gb + s.r * s.gb + se.r * se.gb
+    //     )) * 127.0);
+    //   }
 
-      if (best_p == uint(0)) {
-        // no osc match, so this is an active cell
-        uint recent = last_history.r & uint(3);
-        saturation = SATURATION[recent] * saturation_scale;
-        lightness = LIGHTNESS[recent] * lightness_scale;
-      } else {
-        // oscillators are hue shifted at a speed relative to its P value
-        if (best_p > uint(1)) {
-          hue_shift = HUE_SHIFT_P_FACTOR * (float(best_p) - 1.0);
-        }
+    //   if (best_p == uint(0)) {
+    //     // no osc match, so this is an active cell
+    //     uint recent = last_history.r & uint(3);
+    //     saturation = SATURATION[recent];
+    //     lightness = LIGHTNESS[recent];
+    //   } else {
+    //     // oscillators are hue shifted at a speed relative to its P value
+    //     if (best_p > uint(1)) {
+    //       hue_shift = HUE_SHIFT_P_FACTOR * (float(best_p) - 1.0);
+    //     }
 
-        saturation = SATURATION_OSC[best_p] * saturation_scale;
-        lightness = LIGHTNESS_OSC[best_p] * lightness_scale;
-      }
-    } else {
-      // saturation = SATURATION_OFF;
-      // lightness = LIGHTNESS_OFF;
+    //     saturation = SATURATION_OSC[best_p];
+    //     lightness = LIGHTNESS_OSC[best_p];
+    //   }
+    // } else {
+    //   // saturation = SATURATION_OFF;
+    //   // lightness = LIGHTNESS_OFF;
 
-      float p1_factor = min(1.0, float(next_osc_count_1[0]) / 255.0 * 4.0);
-      float p1_ease_out = p1_factor * (2.0 - p1_factor);
-      // cell_color = vec4(0.06, 0.06, 0.06, 1.0);
-      saturation = mix(0.8, SATURATION_OFF * SATURATION_OFF_SCALE * u_saturation_off, p1_ease_out * 0.84);
-      lightness = mix(0.14, LIGHTNESS_OFF * LIGHTNESS_OFF_SCALE * u_lightness_off, p1_ease_out * 0.84);
-    }
+    //   float p1_factor = min(1.0, float(next_osc_count_1[0]) / 255.0 * 4.0);
+    //   float p1_ease_out = p1_factor * (2.0 - p1_factor);
+    //   // cell_color = vec4(0.06, 0.06, 0.06, 1.0);
+    //   saturation = mix(0.8, SATURATION_OFF, p1_ease_out * 0.84);
+    //   lightness = mix(0.14, LIGHTNESS_OFF, p1_ease_out * 0.84);
+    // }
   } else if (
     ((coord.x == center.x - horizon_dist || coord.x == center.x + horizon_dist) &&
       coord.y >= center.y - horizon_dist && coord.y <= center.y + horizon_dist) ||
@@ -271,14 +258,15 @@ void main() {
     // are not part of the state yet.
     next_cell = last_cell;
 
-    hue_vec = next_cell.gb;
-    if (next_cell.r == 0) {
-      saturation = 0.0;
-      lightness = 0.64;
-    } else {
-      saturation = 1.0;
-      lightness = 0.84;
-    }
+    cell_color_out = vec4(vec3(float(next_cell.r == 1)), 1.0);
+    // hue_vec = next_cell.gb;
+    // if (next_cell.r == 0) {
+    //   saturation = 0.0;
+    //   lightness = 0.64;
+    // } else {
+    //   saturation = 1.0;
+    //   lightness = 0.84;
+    // }
   } else if (
     ((coord.x == center.x - entropy_dist || coord.x == center.x + entropy_dist) &&
       coord.y >= center.y - entropy_dist && coord.y <= center.y + entropy_dist) ||
@@ -289,47 +277,49 @@ void main() {
     // interact with starting the next generation.
     next_cell = texelFetch(u_entropy, coord, 0);
 
-    hue_vec = next_cell.gb;
-    if (next_cell.r == 0) {
-      saturation = 0.0;
-      lightness = 0.05;
-    } else {
-      saturation = 0.6;
-      lightness = 0.2;
-    }
+    cell_color_out = vec4(vec3(float(next_cell.r == 1)), 1.0);
+
+    // hue_vec = next_cell.gb;
+    // if (next_cell.r == 0) {
+    //   saturation = 0.0;
+    //   lightness = 0.05;
+    // } else {
+    //   saturation = 0.6;
+    //   lightness = 0.2;
+    // }
   } else {
     // we're outside the universe, nothing to see here, move along.
     next_cell = ivec4(0);
 
-    hue_vec = ivec2(0);
-    saturation = 0.0;
-    lightness = 0.0;
+    // hue_vec = ivec2(0);
+    // saturation = 0.0;
+    // lightness = 0.0;
+
+    cell_color_out = vec4(vec3(0.0), 1.0);
 
     next_osc_count_1 = uvec4(255);
   }
 
+  // // calculate the color from the hsl and hue shift
+  // float hue_deg = atan(float(hue_vec.y), float(hue_vec.x)) * RAD_TO_DEG;
+  // if (hue_shift > 0.0) {
+  //   vec2 shifted_hue_vec;
+  //   hue_deg += hue_shift;
 
+  //   shifted_hue_vec.x = cos(hue_deg * DEG_TO_RAD);
+  //   shifted_hue_vec.y = sin(hue_deg * DEG_TO_RAD);
+  //   hue_vec = ivec2(normalize(shifted_hue_vec) * 127.0);
+  // }
 
-  // calculate the color from the hsl and hue shift
-  float hue_deg = atan(float(hue_vec.y), float(hue_vec.x)) * RAD_TO_DEG;
-  if (hue_shift > 0.0) {
-    vec2 shifted_hue_vec;
-    hue_deg += hue_shift;
+  // next_cell.gb = hue_vec;
 
-    shifted_hue_vec.x = cos(hue_deg * DEG_TO_RAD);
-    shifted_hue_vec.y = sin(hue_deg * DEG_TO_RAD);
-    hue_vec = ivec2(normalize(shifted_hue_vec) * 127.0);
-  }
-
-  next_cell.gb = hue_vec;
-
-  if (hue_deg < 0.0) {
-    hue_deg += 360.0;
-  }
-  float hue = hue_deg * INV_360;
+  // if (hue_deg < 0.0) {
+  //   hue_deg += 360.0;
+  // }
+  // float hue = hue_deg * INV_360;
 
   // copy outputs
-  cell_color_out = vec4(hsl2rgb(hue, saturation, lightness), 1.0);
+  // cell_color_out = vec4(hsl2rgb(hue, saturation, lightness), 1.0);
   cell_out = next_cell;
   history_out = next_history;
   osc_count_out_1 = next_osc_count_1;
