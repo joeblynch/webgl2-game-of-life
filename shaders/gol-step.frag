@@ -33,6 +33,7 @@ const float HUE_SHIFT_P_FACTOR = 2.0;
 
 // TODO: adjustable global brightsness, and adijustment at each level inc. off
 
+// saturation and lightness config for on cells, based on prior two states
 const float SATURATION[4] = float[4](
   0.98, // 001
   0.71, // 011
@@ -47,6 +48,7 @@ const float LIGHTNESS[4] = float[4](
   0.26  // 111
 );
 
+// sasturation and lightness config for oscillators with period 1-4 
 const float SATURATION_OSC[5] = float[5](
   0.0,
   0.68,
@@ -125,8 +127,7 @@ uint getOscCount(uint history, uint p, uint prev_osc_count) {
   uint mask = uint((1 << p) - 1);
   bool is_match = (history & mask) == ((history >> p) & mask);
 
-  // clamp count at 256 - p, so that for example a P2 isn't seen as a P4 whe both hit 255 length
-  // uint next_increment = min(prev_osc_count + uint(1), MAX_OSC_COUNT[p]);
+  // clamp count at 256 - p, so that for example a P2 isn't seen as a P4 when both hit 255 length
   uint next_increment = min(prev_osc_count + uint(1), uint(256) - p);
 
   return uint(is_match) * next_increment;
@@ -147,8 +148,8 @@ void main() {
   // lookup this cell's state as of the last generation
   ivec4 last_cell = texelFetch(u_state, coord, 0);
 
-  // figure out where the event horizon is, and where we are relative to it
-  // the universe starts as a single empty point, surrounded by an event horizon which expands at the speed of light.
+  // figure out where the "event horizon" is, and where we are relative to it
+  // this "universe" starts as a single empty point, surrounded by an event horizon which expands at the speed of light.
   // we start at a generation of -1, just before the universe exists, in order to inject entropy just beyond the horizon
   int horizon_dist = u_generation + 1;
   int entropy_dist = horizon_dist + 1;
@@ -162,12 +163,8 @@ void main() {
     // this cell is inside the universe
 
     /*
-    -1: universe does not yet exist, but is about to. it has zero size, and an event horizon of a single point. entropy is injected around that point
-    0: universe has a size of 1, that point steps forward, using the entropy at the event horizon to determine its state, entropy is injected just beyond the horizon
-
-    universe_edge_dist = gen + 1
-    horizon_dist = universe_edge_dist + 1;
-    entropy_dist = horizon_dist + 1;
+    gen -1: universe does not yet exist, but is about to. it has zero size, and an event horizon of a single point. entropy is injected around that point
+    gen  0: universe has a size of 1, that point steps forward, using the entropy at the event horizon to determine its state, entropy is injected just beyond the horizon
     */
 
     // lookup neighbor state
@@ -195,7 +192,7 @@ void main() {
     // update history
     next_history.r = last_history.r << 1 | uint(next_cell.r);
 
-    // count oscillators
+    // count oscillators for most frequent periods
     // NOTE: best oscilator search expects increasing P value
     next_osc_count_1[0] = getOscCount(next_history.r, uint(1), last_osc_count_1[0]);
     next_osc_count_1[1] = getOscCount(next_history.r, uint(2), last_osc_count_1[1]);
@@ -227,7 +224,7 @@ void main() {
       float lightness_scale = LIGHTNESS_ON_SCALE * u_lightness_on;
 
       if ((last_history.r & uint(1)) == uint(0)) {
-        // cell is newly on, so it inherits it's color from it's parents
+        // cell is newly on, so it inherits its color from its parents
         // calculate new hue vector by summing hue vectors of alive neighbors
         hue_vec = ivec2(normalize(vec2(
           nw.r * nw.gb + n.r * n.gb + ne.r * ne.gb +
@@ -237,11 +234,12 @@ void main() {
       }
 
       if (best_p == uint(0)) {
-        // no osc match, so this is an active cell
+        // no osc match, so this is a newly active cell
         uint recent = last_history.r & uint(3);
         saturation = SATURATION[recent] * saturation_scale;
         lightness = LIGHTNESS[recent] * lightness_scale;
       } else {
+        // TODO: figure out why hue shifting oscillators only works for a few generations
         // oscillators are hue shifted at a speed relative to its P value
         if (best_p > uint(1)) {
           hue_shift = HUE_SHIFT_P_FACTOR * (float(best_p) - 1.0);
@@ -251,12 +249,9 @@ void main() {
         lightness = LIGHTNESS_OSC[best_p] * lightness_scale;
       }
     } else {
-      // saturation = SATURATION_OFF;
-      // lightness = LIGHTNESS_OFF;
-
       float p1_factor = min(1.0, float(next_osc_count_1[0]) / 255.0 * 4.0);
       float p1_ease_out = p1_factor * (2.0 - p1_factor);
-      // cell_color = vec4(0.06, 0.06, 0.06, 1.0);
+
       saturation = mix(0.8, SATURATION_OFF * SATURATION_OFF_SCALE * u_saturation_off, p1_ease_out * 0.84);
       lightness = mix(0.14, LIGHTNESS_OFF * LIGHTNESS_OFF_SCALE * u_lightness_off, p1_ease_out * 0.84);
     }
@@ -266,9 +261,9 @@ void main() {
     ((coord.y == center.y - horizon_dist || coord.y == center.y + horizon_dist) &&
       coord.x >= center.x - horizon_dist && coord.x <= center.x + horizon_dist)
   ) {
-    // we're at the event horizon. this cell has entered the universe, and effects the state of it's neighbors inside
-    // the universe. time doesn't tick here, because some of it's neightbors are still beyond the event horizon, and
-    // are not part of the state yet.
+    // we're at the event horizon. this cell has entered the universe, and affects the state of its neighbors inside
+    // the universe. time doesn't tick here, because some of its neightbors are still beyond the event horizon, and
+    // are not part of the universe's state yet.
     next_cell = last_cell;
 
     hue_vec = next_cell.gb;
@@ -285,8 +280,8 @@ void main() {
     ((coord.y == center.y - entropy_dist || coord.y == center.y + entropy_dist) &&
       coord.x >= center.x - entropy_dist && coord.x <= center.x + entropy_dist)
   ) {
-    // we're just beyond the event horizon, inject some entropy into the state grid, ready to for it's neighbors to
-    // interact with starting the next generation.
+    // we're just beyond the event horizon, inject some entropy into the state grid, ready for its neighbors to
+    // interact with, starting the next generation.
     next_cell = texelFetch(u_entropy, coord, 0);
 
     hue_vec = next_cell.gb;

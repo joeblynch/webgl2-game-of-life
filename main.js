@@ -246,15 +246,16 @@ function getActiveCells() {
 
   if (!active) {
     // no cells are active, but lets give everything a chance to fade out for a bit
+    const MIN_FADE_ACTIVE_COUNT = 36;
     active = 0;
     for (let i = 0, l = _oscCounts_1.length; i < l; i += 4) {
       if (
-        _oscCounts_1[i] < 36 &&
-        _oscCounts_1[i + 1] < 36 &&
-        _oscCounts_1[i + 2] < 36 &&
-        _oscCounts_1[i + 3] < 36 &&
-        _oscCounts_2[i] < 36 &&
-        _oscCounts_2[i + 1] < 36
+        _oscCounts_1[i] < MIN_FADE_ACTIVE_COUNT &&
+        _oscCounts_1[i + 1] < MIN_FADE_ACTIVE_COUNT &&
+        _oscCounts_1[i + 2] < MIN_FADE_ACTIVE_COUNT &&
+        _oscCounts_1[i + 3] < MIN_FADE_ACTIVE_COUNT &&
+        _oscCounts_2[i] < MIN_FADE_ACTIVE_COUNT &&
+        _oscCounts_2[i + 1] < MIN_FADE_ACTIVE_COUNT
       ) {
         active++;
       }
@@ -269,7 +270,7 @@ async function loadShaderSource(filename) {
   return await res.text();
 }
 
-async function init(reinit = false) {
+async function init(reInit = false) {
   const { PicoGL } = window;
   const { width: displayWidth, height: displayHeight } = screen;
   const width = displayWidth; // * window.devicePixelRatio;
@@ -279,7 +280,7 @@ async function init(reinit = false) {
 
   console.log(width, height, _stateWidth, _stateHeight);
 
-  if (!reinit) {
+  if (!reInit) {
     const canvasEl = document.getElementById('c');
     canvasEl.width = width;
     canvasEl.height = height;
@@ -307,7 +308,7 @@ async function init(reinit = false) {
 
   const entropy = generateRandomState(_stateWidth, _stateHeight);
 
-  if (reinit) {
+  if (reInit) {
     _textures.entropy.delete();
     // _textures.state.forEach(state => state.delete());
     _textures.history[0].delete();
@@ -377,7 +378,7 @@ async function init(reinit = false) {
   _drawCalls.screen = _app.createDrawCall(_programs.screen, _vao)
     .uniform('cell_size', _cellSize);
 
-  if (!reinit) {
+  if (!reInit) {
     _offscreen = _app.createFramebuffer();
   }
 }
