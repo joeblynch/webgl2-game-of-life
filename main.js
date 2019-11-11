@@ -4,6 +4,9 @@ const MAX_ENTROPY = 65536;
 const CELL_STATE_BYTES = 4;
 const CELL_OSC_COUNT_BYTES = 4;
 
+// NOTE: seed entropy saved before 2019/11/08 uses a start generation of -1
+const START_GENERATION = -2;
+
 let _app;
 const _programs = {};
 const _drawCalls = {};
@@ -18,7 +21,7 @@ let _quad;
 let _vao;
 let _stateWidth;
 let _stateHeight;
-let _generation = -1;
+let _generation = START_GENERATION;
 let _maxGenerations = -1;
 let _entropy;
 let _speed = -5;
@@ -205,7 +208,7 @@ function draw() {
 }
 
 function reset() {
-  _generation = -1;
+  _generation = START_GENERATION;
 
   _entropy = generateRandomState(_stateWidth, _stateHeight);
 
@@ -306,8 +309,6 @@ async function init(reInit = false) {
     _programs.screen = _app.createProgram(quadVertShader, await loadShaderSource('screen.frag'));
   }
 
-  const entropy = generateRandomState(_stateWidth, _stateHeight);
-
   if (reInit) {
     _textures.entropy.delete();
     // _textures.state.forEach(state => state.delete());
@@ -316,6 +317,8 @@ async function init(reInit = false) {
     _textures.oscCounts.forEach(oscCounts => oscCounts.forEach(oscCount => oscCount.delete()));
     _textures.cellColors.delete();
   }
+
+  const entropy = generateRandomState(_stateWidth, _stateHeight);
 
   _textures.entropy = _app.createTexture2D(entropy, _stateWidth, _stateHeight, {
     internalFormat: PicoGL.RGBA8I,
@@ -333,13 +336,8 @@ async function init(reInit = false) {
     magFilter: PicoGL.NEAREST
   });
 
-  _textures.state = [
-    // random back buffer
-    createStateTexture(),
-
-    // empty front buffer
-    createStateTexture()
-  ];
+  // empty back and front state buffers
+  _textures.state = [createStateTexture(), createStateTexture()];
 
   const createHistoryTexture = () => _app.createTexture2D(_stateWidth, _stateHeight, {
     internalFormat: PicoGL.R32UI,
@@ -349,6 +347,7 @@ async function init(reInit = false) {
     magFilter: PicoGL.NEAREST
   });
 
+  // front and back history buffers, tracking the last 32 states for oscillator detection
   _textures.history = [createHistoryTexture(), createHistoryTexture()];
 
   const createOscCountTexture = () => _app.createTexture2D(_stateWidth, _stateHeight, {
@@ -359,6 +358,7 @@ async function init(reInit = false) {
     magFilter: PicoGL.NEAREST
   });
 
+  // front and back counts for oscillation counts across the most common oscillator periods
   _textures.oscCounts = [
     [createOscCountTexture(), createOscCountTexture()],
     [createOscCountTexture(), createOscCountTexture()]

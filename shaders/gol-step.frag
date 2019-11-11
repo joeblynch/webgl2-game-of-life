@@ -74,6 +74,18 @@ const float SATURATION_OFF_SCALE = 1.0 / SATURATION_OFF;
 const float LIGHTNESS_ON_SCALE = 1.0 / LIGHTNESS[0];
 const float LIGHTNESS_OFF_SCALE = 1.0 / LIGHTNESS_OFF;
 
+// most frequent osciallator periods to check for
+// NOTE: MUST be in ascending order
+const uint OSCILLATOR_PERIODS[5] = uint[5](
+  uint(1),
+  uint(2),
+  uint(3),
+  uint(4),
+  // uint(8),
+  // uint(14),
+  uint(15)
+);
+
 // hsl convert functions from here: https://github.com/Jam3/glsl-hsl2rgb/blob/master/index.glsl
 float hue2rgb(float f1, float f2, float hue) {
     if (hue < 0.0)
@@ -118,18 +130,21 @@ vec3 hsl2rgb(float h, float s, float l) {
     return hsl2rgb(vec3(h, s, l));
 }
 
-ivec4 getWrapped(ivec2 coord, ivec2 size) {
+ivec4 getState(ivec2 coord, ivec2 size) {
+  // handle the wrapping of coordinates around the torus manually, to support non-power-of-two sized universes
   ivec2 wrapped = (coord + size) % size;
   return texelFetch(u_state, wrapped, 0);
 }
 
 uint getOscCount(uint history, uint p, uint prev_osc_count) {
+  // check if the last [p] states match the previous [p] states
   uint mask = uint((1 << p) - 1);
   bool is_match = (history & mask) == ((history >> p) & mask);
 
   // clamp count at 256 - p, so that for example a P2 isn't seen as a P4 when both hit 255 length
   uint next_increment = min(prev_osc_count + uint(1), uint(256) - p);
 
+  // multiply by is_match, to avoid branching
   return uint(is_match) * next_increment;
 }
 
@@ -168,21 +183,21 @@ void main() {
     */
 
     // lookup neighbor state
-    ivec4 nw = getWrapped(coord + ivec2(-1, -1), size);
-    ivec4 n  = getWrapped(coord + ivec2( 0, -1), size);
-    ivec4 ne = getWrapped(coord + ivec2( 1, -1), size);
-    ivec4 w  = getWrapped(coord + ivec2(-1,  0), size);
-    ivec4 e  = getWrapped(coord + ivec2( 1,  0), size);
-    ivec4 sw = getWrapped(coord + ivec2(-1,  1), size);
-    ivec4 s  = getWrapped(coord + ivec2( 0,  1), size);
-    ivec4 se = getWrapped(coord + ivec2( 1,  1), size);
+    ivec4 nw = getState(coord + ivec2(-1, -1), size);
+    ivec4 n  = getState(coord + ivec2( 0, -1), size);
+    ivec4 ne = getState(coord + ivec2( 1, -1), size);
+    ivec4 w  = getState(coord + ivec2(-1,  0), size);
+    ivec4 e  = getState(coord + ivec2( 1,  0), size);
+    ivec4 sw = getState(coord + ivec2(-1,  1), size);
+    ivec4 s  = getState(coord + ivec2( 0,  1), size);
+    ivec4 se = getState(coord + ivec2( 1,  1), size);
 
     // lookup own past
     uvec4 last_history = texelFetch(u_history, coord, 0);
     uvec4 last_osc_count_1 = texelFetch(u_osc_count_1, coord, 0);
     uvec4 last_osc_count_2 = texelFetch(u_osc_count_2, coord, 0);
 
-    // calculate existance
+    // calculate existance, without branching
     int neighbors = nw.r + n.r + ne.r + w.r + e.r + sw.r + s.r + se.r;
     // next_cell.r = int(neighbors == 3) | int(neighbors == 4) | (int(neighbors == 2) & last_cell.r);
     // next_cell.r = int(neighbors == 3) | int(neighbors == 1) | (int(neighbors == 2) & last_cell.r);
@@ -193,26 +208,22 @@ void main() {
     next_history.r = last_history.r << 1 | uint(next_cell.r);
 
     // count oscillators for most frequent periods
-    // NOTE: best oscilator search expects increasing P value
-    next_osc_count_1[0] = getOscCount(next_history.r, uint(1), last_osc_count_1[0]);
-    next_osc_count_1[1] = getOscCount(next_history.r, uint(2), last_osc_count_1[1]);
-    next_osc_count_1[2] = getOscCount(next_history.r, uint(3), last_osc_count_1[2]);
-    next_osc_count_1[3] = getOscCount(next_history.r, uint(4), last_osc_count_1[3]);
-    next_osc_count_2[0] = getOscCount(next_history.r, uint(15), last_osc_count_2[0]);
-    // next_osc_count_2[1] = getOscCount(next_history.r, uint(6), last_osc_count_2[1]);
-    // next_osc_count_2[2] = getOscCount(next_history.r, uint(3), last_osc_count_2[2]);
-    // next_osc_count_2[3] = getOscCount(next_history.r, uint(4), last_osc_count_2[3]);
+    // NOTE: min oscilator search expects increasing P value
+    next_osc_count_1[0] = getOscCount(next_history.r, OSCILLATOR_PERIODS[0], last_osc_count_1[0]);
+    next_osc_count_1[1] = getOscCount(next_history.r, OSCILLATOR_PERIODS[1], last_osc_count_1[1]);
+    next_osc_count_1[2] = getOscCount(next_history.r, OSCILLATOR_PERIODS[2], last_osc_count_1[2]);
+    next_osc_count_1[3] = getOscCount(next_history.r, OSCILLATOR_PERIODS[3], last_osc_count_1[3]);
+    next_osc_count_2[0] = getOscCount(next_history.r, OSCILLATOR_PERIODS[4], last_osc_count_2[0]);
 
-    // find best oscillator
+    // find min oscillator period, since a P2 is also P4, a P1 also P2, P3, etc.
     uint max_len = uint(0);
-    uint best_p = uint(0);
+    uint min_p = uint(0);
 
-    for (uint i = uint(0); i < uint(4); i++) {
-      uint period = i + uint(1);
-      uint len = next_osc_count_1[i];
+    for (uint i = uint(0); i < uint(5); i++) {
+      uint len = i < uint(4) ? next_osc_count_1[i] : next_osc_count_2[i - uint(4)];
       if (len > max_len && len >= MIN_OSC_LEN) {
         max_len = len;
-        best_p = period;
+        min_p = OSCILLATOR_PERIODS[i];
       }
     }
 
@@ -233,7 +244,7 @@ void main() {
         )) * 127.0);
       }
 
-      if (best_p == uint(0)) {
+      if (min_p == uint(0)) {
         // no osc match, so this is a newly active cell
         uint recent = last_history.r & uint(3);
         saturation = SATURATION[recent] * saturation_scale;
@@ -241,12 +252,12 @@ void main() {
       } else {
         // TODO: figure out why hue shifting oscillators only works for a few generations
         // oscillators are hue shifted at a speed relative to its P value
-        if (best_p > uint(1)) {
-          hue_shift = HUE_SHIFT_P_FACTOR * (float(best_p) - 1.0);
+        if (min_p > uint(1)) {
+          hue_shift = HUE_SHIFT_P_FACTOR * (float(min_p) - 1.0);
         }
 
-        saturation = SATURATION_OSC[best_p] * saturation_scale;
-        lightness = LIGHTNESS_OSC[best_p] * lightness_scale;
+        saturation = SATURATION_OSC[min_p] * saturation_scale;
+        lightness = LIGHTNESS_OSC[min_p] * lightness_scale;
       }
     } else {
       float p1_factor = min(1.0, float(next_osc_count_1[0]) / 255.0 * 4.0);
@@ -266,6 +277,7 @@ void main() {
     // are not part of the universe's state yet.
     next_cell = last_cell;
 
+    // light up the cell as it crosses the eevnt horizon
     hue_vec = next_cell.gb;
     if (next_cell.r == 0) {
       saturation = 0.0;
