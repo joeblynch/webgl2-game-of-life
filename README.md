@@ -2,31 +2,37 @@ WebGL2 Conway's Game of Life
 ============================
 
 This is my take on Conway's Game of Life. The main features were originally written in JS 12/2018-01/2019, converted to
-WebGL1 shortly after, and then to WebGL2 to allow for multiple outputs from the main shader.
+WebGL shortly after, and then to WebGL2 to allow for multiple outputs from the main shader.
 
 ## Additional Features
 
 ### "Big Bang" start to the universe
-The universe starts as a single point, and expands at a rate of one cell per generation, in every direction.
+The universe starts as a single point, and expands at a rate of one cell per generation in every direction.
 
-This came out of thinking how to build a massively distributed GoL universe. Because the state of each cell
-is impacted by its immediate neighbors, unless the universe size was constrained, the impact of each cell's state could
-potentially expand the universe's size by a rate of one cell per generation, in every direction. (See:
+This came out of some work to design a massively distributed GoL universe. Due to the state of each cell
+being impacted by its immediate neighbors, unless the universe size was constrained, the impact of each cell's state
+could potentially expand the universe's size by a rate of one cell per generation, in every direction. (See:
 [speed of light](https://www.conwaylife.com/wiki/Speed))
 
-If we follow that backwards to a single point in the first generation, that single cell has no neighbors, so what
-determines the cell's state? We could start the universe out as [soup](https://www.conwaylife.com/wiki/Soup),
-so each cell has a random initial state. Since this initial state isn't determined by the universe's state, let's
-consider the cell to be outside of the universe, where time doesn't yet tick.
+A GoL universe that exists as only a single point has a problem though. Since the rules of GoL determine the next state
+of a cell by counting the "alive" cells surrounding it, and single point universe has no neighbors. In other words, in
+a GoL universe, time cannot tick for a cell without a full set of neighbors.
 
-Even with an initial state set, a single cell can't tick, because it has no neighbors to determine its next state. As
-the universe expands, still the cells at the boundary don't have any neighbors in the direction outside the universe,
-so they also can't tick.
+A solution is to surround the universe with, for lack of a better name, an "event horizon". The event horizon is a
+single cell wide boundary of the universe, in which cells have state, but time does not tick due to lacking a full set
+of neighbors. This gives the single universe point in generation 0 a full set of neighbors to tick against.
+
+But what determines the initial state of the cells in the horizon? If their initial state is null, the universe will 
+consist only of dead cells. To make the GoL universe interesting, we start each cell with a random state. (See:
+[soup](https://www.conwaylife.com/wiki/Soup)) Because the cells in the event horizon need to already have their state
+set for the inside edge of the universe is determining their next state, the initial cell state needs to be set at least
+one generation before the cell is part of the event horizon, with entropy being pushed/pulled into the outer edge of the
+universe, one cell beyond the horizon.
 
 Based on that, each cell needs to exist for two generations, before it can start ticking. The first generation it is
 created, and has its initial state randomly set. The second generation its state doesn't change, because it doesn't have
-any neighbors away from the center of the universe. Since it existed with a state in the last generation though, it does
-allow its neighbors toward the center to tick, by providing its state.
+any neighbors in the direction away from the center of the universe. Since it existed with a state in the last
+generation though, it does allow its neighbors toward the center to tick, by providing its state.
 
 #### Generation -2
 Because the first cell needs two generations before it starts ticking, and we want the universe to start ticking at
@@ -43,10 +49,8 @@ event_horizon_dist = universe_edge_dist + 1;  // distance to the universe bounda
 entropy_dist = event_horizon_dist + 1;        // distance to where the initial state is being injected into the universe
 ```
 
-At generation -2, the universe has a negative size, so it doesn't yet exist. The distance to the "event horizon", for
-lack of a better name, where time doesn't yet tick, is -1. It's just on the other side of the universe, pushing the
-first bit of entropy into the universe. And the distance to where entropy is injected is 0, so the first cell has its
-initial state set.
+At generation -2, the universe has a negative size, so it doesn't yet exist. The distance to the horizon is -1, just on
+the other side of the universe, pushing/pulling the first cell's worth of entropy into the universe. The distance to where entropy is injected is 0, so the first cell has its initial state set.
 
 #### Generation -1
 At generation -1, the universe still has a negative size, so there's nowhere for time to tick. The event horizon has
@@ -95,7 +99,7 @@ The lightness and saturation of a cell is altered for oscillators, depending on 
 P2 (most frequently blinkers), are dimmed because they are so common. Other oscillators are highlighted for their 
 rarity. I also tried rotating the hue of these oscillators, however this isn't working correctly as implemented.
 
-However, an oscillator also oscillates at all multiples of its period. So for example, a P2 is also a P4, P6, etc, and
+An oscillator also oscillates at all multiples of its period. So for example, a P2 is also a P4, P6, etc, and
 a P1 oscillates at all periods up to 1/2 its lifespan.
 
 To detect the minimum period for an oscillator, a count is kept for each P being detected, for each cell. When
@@ -116,15 +120,22 @@ Since the active lifeforms tend to be more interesting than steady state (P1) an
 are highlighted with a higher saturation and lightness. To add extra highlighting to cells that are turning on after
 being off for a while, as well as fade out cells that stay alive, the last three states of the cell are used:
 ```GLSL
-const float LIGHTNESS[4] = float[4](
-  0.6,  // 001
-  0.36, // 011
-  0.41, // 101
-  0.26  // 111
+const float SATURATION[4] = float[4](
+  0.98, // 001: cell is newly on, after being off for a while. it's "recharged", and at its brightest
+  0.71, // 011: cell has been on for a prior tick, and is starting to dim
+  0.93, // 101: cell had a bit of time to recharge, but not quite all the way
+  0.71  // 111: cell is dimming down to a P1 oscillator (still life)
 );
 ```
 
 #### End of the universe detection
-Eventually every GoL universe uses up its entropy, and reaches a steady state in which all alive cells are oscillators.
-After this point, nothing new will happen, and continuing the simulation is no longer interesting. Once it's detected
-that every cell is either dead or an oscillator, the game is ended, and a new one begins.
+For an infinitely expanding GoL universe, there is no end to the game. Each tick additional entropy is injected, so
+equilibrium is never reached. However, each tick requires acquiring an increasing amount of entropy, at a rate of
+`bits_per_cell * 8 * (generation + 1)`. Generation -2 is an exception, in that only `bits_per_cell` bits of entropy are
+needed to tick. Another option would be to start at generation -1, in which the universe starts with a single empty cell
+where time does not yet tick.
+
+Eventually every finite sized GoL universe minimizes its entropy (the opposite of our universe, presumably because cells
+are destroyed when 1/2 or greater of their neighbors exist, so that eventually only stable ordered structures and dead exists), and reaches a steady state in which all alive cells are oscillators. After this point, nothing new will happen,
+and continuing the simulation is no longer interesting. Once it's detected that every cell is either dead or an
+oscillator, the game is ended, and a new one begins.
