@@ -1,4 +1,7 @@
-const DEFAULT_CELL_SIZE = 4;
+// NOTE: This code is ugly because it's uninteresting, so as little time was spent on it as possible.
+//       The magic is happens in gol-step.frag.
+
+const DEFAULT_CELL_SIZE = Math.floor(3 * window.devicePixelRatio);
 
 const MAX_ENTROPY = 65536;
 const CELL_STATE_BYTES = 4;
@@ -11,6 +14,7 @@ let _app;
 const _programs = {};
 const _drawCalls = {};
 const _textures = {};
+let _cellAliveProbability = 0.5;
 let _cellSize = DEFAULT_CELL_SIZE;
 let _oscCounts_1;
 let _oscCounts32_1;
@@ -74,7 +78,7 @@ const _activeEl = document.getElementById('active');
       _fps = 0;
     }
 
-    if (now - 100 >= _lastActiveUpdate) {
+    if (now - 250 >= _lastActiveUpdate) {
       const active = getActiveCells();
       _activeEl.innerText = active;
       if (!active) {
@@ -152,7 +156,12 @@ document.addEventListener('keydown', (e) => {
       e.preventDefault();
       break;
     case 82:  // r
-      reset();
+      if (e.shiftKey) {
+        reset();
+      } else {
+        _generation = 0;
+      }
+      break;
     case 61: // + (win on FF?)
     case 187: // +
       if (e.shiftKey) {
@@ -185,6 +194,7 @@ function step() {
   _offscreen.colorTarget(4, _textures.oscCounts[1][frontIndex]);
   _app.drawFramebuffer(_offscreen);
 
+  // TODO: probably a lot more performant to use a buffer object
   _drawCalls.golStep.uniform('u_generation', _generation);
   _drawCalls.golStep.uniform('u_saturation_on', _saturation_on);
   _drawCalls.golStep.uniform('u_saturation_off', _saturation_off);
@@ -276,8 +286,8 @@ async function loadShaderSource(filename) {
 async function init(reInit = false) {
   const { PicoGL } = window;
   const { width: displayWidth, height: displayHeight } = screen;
-  const width = displayWidth; // * window.devicePixelRatio;
-  const height = displayHeight; // * window.devicePixelRatio;
+  const width = displayWidth * window.devicePixelRatio;
+  const height = displayHeight * window.devicePixelRatio;
   _stateWidth = Math.floor(width / _cellSize);
   _stateHeight = Math.floor(height / _cellSize);
 
@@ -295,10 +305,10 @@ async function init(reInit = false) {
     _quad = _app.createVertexBuffer(PicoGL.FLOAT, 2, new Float32Array([
       -1,  1,
       -1, -1,
-      1, -1,
+       1, -1,
       -1,  1,
-      1, -1,
-      1,  1,
+       1, -1,
+       1,  1,
     ]));
 
     _vao = _app.createVertexArray().vertexAttributeBuffer(0, _quad);
@@ -409,7 +419,8 @@ function generateRandomState(width, height) {
   // convert life state to 0/1 based on probability of being alive
   for (let i = 0; i < length; i += CELL_STATE_BYTES) {
     // assume life state is first byte of cell bytes
-    state[i] = state[i] >= 0 ? 1 : 0;
+    const normalized = (state[i] + 128) / 255;
+    state[i] = normalized <= _cellAliveProbability ? 1 : 0;
   }
 
   return state;

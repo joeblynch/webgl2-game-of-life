@@ -4,41 +4,52 @@ precision mediump int;
 precision mediump isampler2D;
 precision mediump usampler2D;
 
+// generation is input to determine horizon distance
 uniform int u_generation;
+
+// input user configurable multipliers for saturation and lightness of on and off cells
 uniform float u_saturation_on;
 uniform float u_saturation_off;
 uniform float u_lightness_on;
 uniform float u_lightness_off;
+
+// the universe state, each value is a cell. r: on/off state bit, gb: xy unit vector of cell's hue angle
 uniform isampler2D u_state;
+
+// the last 32 on/off states of each cell are remembered, to detect oscillators of up to 16P
 uniform usampler2D u_history;
+
+// entire universe soup for initial cell state is in this texture, and injected at the outer edge of the horizon
 uniform isampler2D u_entropy;
+
+// count how many times oscillators have oscillated, for the most common periods.
+// this allows us to detect "active" cells (non-oscillators), and when no active cells remain, the end of the universe
 uniform usampler2D u_osc_count_1;
 uniform usampler2D u_osc_count_2;
 
+// output the next cell state, and the new state of the cell's history and oscillator counts
 layout(location=0) out ivec4 cell_out;
 layout(location=1) out uvec4 history_out;
 layout(location=2) out uvec4 osc_count_out_1;
 layout(location=3) out vec4 cell_color_out;
 layout(location=4) out uvec4 osc_count_out_2;
 
-const float PI = 3.14159;
-const float RAD_TO_DEG = 180.0 / PI;
-const float DEG_TO_RAD = PI / 180.0;
-const float INV_360 = 1.0 / 360.0;
-
+// set a lower bound on the number of oscillation repitions, before a cell is has its saturation and lightness modified
+// this prevents short bursts of random oscillations from being highlighted or dimmed
 const uint MIN_OSC_LEN = uint(8);
-const uint MAX_OSC_COUNT[5] = uint[5](uint(0), uint(255), uint(127), uint(84), uint(62));
 
+// TODO: playing with making osciallators rotate their hue, possibly with a hue rotation velocity that gets inherited
+//       by new cells. Works for a bit, and then stops for some reason.
 const float HUE_SHIFT_P_FACTOR = 2.0;
 
 // TODO: adjustable global brightsness, and adijustment at each level inc. off
 
 // saturation and lightness config for on cells, based on prior two states
 const float SATURATION[4] = float[4](
-  0.98, // 001
-  0.71, // 011
-  0.93, // 101
-  0.71  // 111
+  0.98, // 001: cell is newly on, after being off for a while. it's "recharged", and at its brightest
+  0.71, // 011: cell has been on for a prior tick, and is starting to dim
+  0.93, // 101: cell had a bit of time to recharge, but not quite all the way
+  0.71  // 111: cell is dimming down to a P1 oscillator (still life)
 );
 
 const float LIGHTNESS[4] = float[4](
@@ -86,49 +97,14 @@ const uint OSCILLATOR_PERIODS[5] = uint[5](
   uint(15)
 );
 
-// hsl convert functions from here: https://github.com/Jam3/glsl-hsl2rgb/blob/master/index.glsl
-float hue2rgb(float f1, float f2, float hue) {
-    if (hue < 0.0)
-        hue += 1.0;
-    else if (hue > 1.0)
-        hue -= 1.0;
-    float res;
-    if ((6.0 * hue) < 1.0)
-        res = f1 + (f2 - f1) * 6.0 * hue;
-    else if ((2.0 * hue) < 1.0)
-        res = f2;
-    else if ((3.0 * hue) < 2.0)
-        res = f1 + (f2 - f1) * ((2.0 / 3.0) - hue) * 6.0;
-    else
-        res = f1;
-    return res;
-}
+float hue2rgb(float f1, float f2, float hue);
+vec3 hsl2rgb(vec3 hsl);
+vec3 hsl2rgb(float h, float s, float l);
 
-vec3 hsl2rgb(vec3 hsl) {
-    vec3 rgb;
-
-    if (hsl.y == 0.0) {
-        rgb = vec3(hsl.z); // Luminance
-    } else {
-        float f2;
-
-        if (hsl.z < 0.5)
-            f2 = hsl.z * (1.0 + hsl.y);
-        else
-            f2 = hsl.z + hsl.y - hsl.y * hsl.z;
-
-        float f1 = 2.0 * hsl.z - f2;
-
-        rgb.r = hue2rgb(f1, f2, hsl.x + (1.0/3.0));
-        rgb.g = hue2rgb(f1, f2, hsl.x);
-        rgb.b = hue2rgb(f1, f2, hsl.x - (1.0/3.0));
-    }
-    return rgb;
-}
-
-vec3 hsl2rgb(float h, float s, float l) {
-    return hsl2rgb(vec3(h, s, l));
-}
+const float PI = 3.14159;
+const float RAD_TO_DEG = 180.0 / PI;
+const float DEG_TO_RAD = PI / 180.0;
+const float INV_360 = 1.0 / 360.0;
 
 ivec4 getState(ivec2 coord, ivec2 size) {
   // handle the wrapping of coordinates around the torus manually, to support non-power-of-two sized universes
@@ -178,8 +154,9 @@ void main() {
     // this cell is inside the universe
 
     /*
-    gen -1: universe does not yet exist, but is about to. it has zero size, and an event horizon of a single point. entropy is injected around that point
-    gen  0: universe has a size of 1, that point steps forward, using the entropy at the event horizon to determine its state, entropy is injected just beyond the horizon
+    gen -2: universe does not yet exist, event horizon is external and will push a single cell of entropy in.
+    gen -1: event horizon is entering as a single point. entropy is injected around that point.
+    gen  0: time starts and universe has a size of 1, that point steps forward using the neighboring event horizon,
     */
 
     // lookup neighbor state
@@ -199,16 +176,19 @@ void main() {
 
     // calculate existance, without branching
     int neighbors = nw.r + n.r + ne.r + w.r + e.r + sw.r + s.r + se.r;
-    // next_cell.r = int(neighbors == 3) | int(neighbors == 4) | (int(neighbors == 2) & last_cell.r);
+    // standard Game of Life: born when 3 neighbors, survive when 2 or 3 neighbors
+    next_cell.r = int(neighbors == 3) | (int(neighbors == 2) & last_cell.r);
+    
+    // some other interesting variations
+    // next_cell.r = int(neighbors == 3) | int(neighbors == 4) | (int(nei9ghbors == 2) & last_cell.r);
     // next_cell.r = int(neighbors == 3) | int(neighbors == 1) | (int(neighbors == 2) & last_cell.r);
     // next_cell.r = int(neighbors == 3) | int(neighbors == 5) | (int(neighbors == 2) & last_cell.r);
-    next_cell.r = int(neighbors == 3) | (int(neighbors == 2) & last_cell.r);
 
     // update history
     next_history.r = last_history.r << 1 | uint(next_cell.r);
 
     // count oscillators for most frequent periods
-    // NOTE: min oscilator search expects increasing P value
+    // NOTE: min oscillator search MUST have increasing P value
     next_osc_count_1[0] = getOscCount(next_history.r, OSCILLATOR_PERIODS[0], last_osc_count_1[0]);
     next_osc_count_1[1] = getOscCount(next_history.r, OSCILLATOR_PERIODS[1], last_osc_count_1[1]);
     next_osc_count_1[2] = getOscCount(next_history.r, OSCILLATOR_PERIODS[2], last_osc_count_1[2]);
@@ -245,7 +225,7 @@ void main() {
       }
 
       if (min_p == uint(0)) {
-        // no osc match, so this is a newly active cell
+        // no osc match, so this is an active cell
         uint recent = last_history.r & uint(3);
         saturation = SATURATION[recent] * saturation_scale;
         lightness = LIGHTNESS[recent] * lightness_scale;
@@ -260,11 +240,14 @@ void main() {
         lightness = LIGHTNESS_OSC[min_p] * lightness_scale;
       }
     } else {
+      // cell is off, ease out to the off saturation and lightness
       float p1_factor = min(1.0, float(next_osc_count_1[0]) / 255.0 * 4.0);
       float p1_ease_out = p1_factor * (2.0 - p1_factor);
 
       saturation = mix(0.8, SATURATION_OFF * SATURATION_OFF_SCALE * u_saturation_off, p1_ease_out * 0.84);
-      lightness = mix(0.14, LIGHTNESS_OFF * LIGHTNESS_OFF_SCALE * u_lightness_off, p1_ease_out * 0.84);
+      lightness = mix(0.17, LIGHTNESS_OFF * LIGHTNESS_OFF_SCALE * u_lightness_off, p1_ease_out * 0.84);
+      // saturation = SATURATION_OFF * SATURATION_OFF_SCALE * u_saturation_off * p1_ease_out * 0.84;
+      // lightness = LIGHTNESS_OFF * LIGHTNESS_OFF_SCALE * u_lightness_off * p1_ease_out * 0.84;
     }
   } else if (
     ((coord.x == center.x - horizon_dist || coord.x == center.x + horizon_dist) &&
@@ -316,7 +299,6 @@ void main() {
   }
 
 
-
   // calculate the color from the hsl and hue shift
   float hue_deg = atan(float(hue_vec.y), float(hue_vec.x)) * RAD_TO_DEG;
   if (hue_shift > 0.0) {
@@ -341,4 +323,48 @@ void main() {
   history_out = next_history;
   osc_count_out_1 = next_osc_count_1;
   osc_count_out_2 = next_osc_count_2;
+}
+
+// hsl convert functions from here: https://github.com/Jam3/glsl-hsl2rgb/blob/master/index.glsl
+float hue2rgb(float f1, float f2, float hue) {
+    if (hue < 0.0)
+        hue += 1.0;
+    else if (hue > 1.0)
+        hue -= 1.0;
+    float res;
+    if ((6.0 * hue) < 1.0)
+        res = f1 + (f2 - f1) * 6.0 * hue;
+    else if ((2.0 * hue) < 1.0)
+        res = f2;
+    else if ((3.0 * hue) < 2.0)
+        res = f1 + (f2 - f1) * ((2.0 / 3.0) - hue) * 6.0;
+    else
+        res = f1;
+    return res;
+}
+
+vec3 hsl2rgb(vec3 hsl) {
+    vec3 rgb;
+
+    if (hsl.y == 0.0) {
+        rgb = vec3(hsl.z); // Luminance
+    } else {
+        float f2;
+
+        if (hsl.z < 0.5)
+            f2 = hsl.z * (1.0 + hsl.y);
+        else
+            f2 = hsl.z + hsl.y - hsl.y * hsl.z;
+
+        float f1 = 2.0 * hsl.z - f2;
+
+        rgb.r = hue2rgb(f1, f2, hsl.x + (1.0/3.0));
+        rgb.g = hue2rgb(f1, f2, hsl.x);
+        rgb.b = hue2rgb(f1, f2, hsl.x - (1.0/3.0));
+    }
+    return rgb;
+}
+
+vec3 hsl2rgb(float h, float s, float l) {
+    return hsl2rgb(vec3(h, s, l));
 }
