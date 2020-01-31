@@ -1,8 +1,10 @@
 WebGL2 Conway's Game of Life
 ============================
 
-This is my take on Conway's Game of Life. The main features were originally written in JS 12/2018-01/2019, converted to
-WebGL shortly after, and then to WebGL2 to allow for multiple outputs from the main shader.
+This is my take on Conway's Game of Life. The main additional features were originally written in JS 12/2018-01/2019,
+converted to WebGL shortly after, and then to WebGL2 to allow for multiple outputs from the main shader.
+
+If you'd like to jump into the code, all the interesting stuff happens in [this shader](./shaders/gol-step.frag).
 
 ## Additional Features
 
