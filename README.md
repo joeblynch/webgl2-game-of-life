@@ -16,20 +16,20 @@ being impacted by its immediate neighbors, unless the universe size was constrai
 could potentially expand the universe's size by a rate of one cell per generation, in every direction. (See:
 [speed of light](https://www.conwaylife.com/wiki/Speed))
 
-A GoL universe that exists as only a single point has a problem though. Since the rules of GoL determine the next state
-of a cell by counting the "alive" cells surrounding it, and single point universe has no neighbors. In other words, in
-a GoL universe, time cannot tick for a cell without a full set of neighbors.
+A GoL universe that exists as only a single point has a problem though: the rules of GoL determine the next state of a
+cell by counting the "alive" cells surrounding it, and a single point universe has no neighbors. In other words,
+in a GoL universe, time cannot tick for a cell without a full set of neighbors.
 
 A solution is to surround the universe with, for lack of a better name, an "event horizon". The event horizon is a
 single cell wide boundary of the universe, in which cells have state, but time does not tick due to lacking a full set
 of neighbors. This gives the single universe point in generation 0 a full set of neighbors to tick against.
 
 But what determines the initial state of the cells in the horizon? If their initial state is null, the universe will 
-consist only of dead cells. To make the GoL universe interesting, we start each cell with a random state. (See:
+consist only of dead cells. To make the GoL universe interesting, each cell starts with a random state. (See:
 [soup](https://www.conwaylife.com/wiki/Soup)) Because the cells in the event horizon need to already have their state
-set for the inside edge of the universe is determining their next state, the initial cell state needs to be set at least
-one generation before the cell is part of the event horizon, with entropy being pushed/pulled into the outer edge of the
-universe, one cell beyond the horizon.
+set for the cells at the inside edge of the universe to determining their next state, the initial cell state needs to be
+set at least one generation before the cell is part of the event horizon. Entropy is pushed/pulled into the outer edge
+of the universe, one cell beyond the horizon.
 
 Based on that, each cell needs to exist for two generations, before it can start ticking. The first generation it is
 created, and has its initial state randomly set. The second generation its state doesn't change, because it doesn't have
@@ -37,7 +37,7 @@ any neighbors in the direction away from the center of the universe. Since it ex
 generation though, it does allow its neighbors toward the center to tick, by providing its state.
 
 #### Generation -2
-Because the first cell needs two generations before it starts ticking, and we want the universe to start ticking at
+Because the first cell needs two generations before it starts ticking, and the universe should start ticking at
 generation zero, the game starts at generation -2. As the game runs, there will be a square ring two cells wide, of
 non-ticking cells going through their initialization phase. In this implementation, instead of an infinitely expanding
 universe, a screen sized [torus](https://www.conwaylife.com/wiki/Torus) is used. As a result, the universe boundaries
