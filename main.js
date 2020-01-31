@@ -7,6 +7,21 @@ const MAX_ENTROPY = 65536;
 const CELL_STATE_BYTES = 4;
 const CELL_OSC_COUNT_BYTES = 4;
 
+function parseHash() {
+  return location.hash
+    .substr(1)
+    .split('&')
+    .map(kv => kv.split('='))
+    .reduce((hash, [key, value]) => {
+      if (value.match(/^-?\d+(?:\.\d+)?$/)) {
+        value = parseFloat(value);
+      }
+
+      hash[key] = value;
+      return hash;
+    }, {});
+}
+
 // NOTE: seed entropy saved before 2019/11/08 uses a start generation of -1
 const START_GENERATION = -2;
 
@@ -14,8 +29,10 @@ let _app;
 const _programs = {};
 const _drawCalls = {};
 const _textures = {};
-let _cellAliveProbability = 0.5;
-let _cellSize = DEFAULT_CELL_SIZE;
+const options = parseHash();
+let _cellAliveProbability = options.alive >= 0 && options.alive <= 1 ? options.alive : 0.5;
+let _cellSize = options.size || DEFAULT_CELL_SIZE;
+let _speed = typeof options.speed === 'number' ? options.speed : -5;
 let _oscCounts_1;
 let _oscCounts32_1;
 let _oscCounts_2;
@@ -28,7 +45,6 @@ let _stateHeight;
 let _generation = START_GENERATION;
 let _maxGenerations = -1;
 let _entropy;
-let _speed = -5;
 let _running = true;
 let _lastFPSUpdate = 0;
 let _lastActiveUpdate = 0;

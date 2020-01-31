@@ -61,8 +61,8 @@ The universe now has a size of 1, and because that single cell now is surrounded
 is able to start ticking. From here on out, within the boundaries of the universe, the game runs normally.
 
 #### Side note: injecting 100% alive cells
-When tweaking the universe so that each cell has a 100% chance of starting out alive, an interesting pattern emerges.
-TODO: link w/ param to set alive odds to 100%
+When tweaking the universe so that each cell has a 100% chance of starting out alive, an
+[interesting pattern emerges](https://gameoflife.space/#alive=1&size=2&speed=-1).
 
 ### Cells inherit color
 In addition to an on/off state, each cell also stores a hue angle as a 2D unit vector. When a new cell is born, it
