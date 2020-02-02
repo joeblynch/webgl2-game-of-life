@@ -123,6 +123,8 @@ P2 (most frequently blinkers), are dimmed because they are so common. Other osci
 rarity. I also tried rotating the hue of these oscillators, however this is only working correctly as implemented for
 P15 oscillators (and likely other high P), for some reason.
 
+![hue rotating P15 (pentadecathlon)](pentadecathlon-short.gif)
+
 An oscillator also oscillates at all multiples of its period. So for example, a P2 is also a P4, P6, etc, and
 a P1 oscillates at all periods up to 1/2 its lifespan.
 
