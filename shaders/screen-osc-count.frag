@@ -15,6 +15,6 @@ void main() {
     frag_color = vec4(0.0, 0.0, 0.0, 1.0);
   } else {
     uvec4 cell = texelFetch(u_osc_count, coord / cell_size, 0);
-    frag_color = vec4(vec3(cell.rgb) / 255.0, 1.0);
+    frag_color = vec4(vec3(cell.gba) / 255.0, 1.0);
   }
 }
