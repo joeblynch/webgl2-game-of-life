@@ -138,8 +138,9 @@ needed to tick. Another option would be to start at generation -1, in which the 
 where time does not yet tick.
 
 Eventually every finite sized GoL universe minimizes its entropy (the opposite of our universe, presumably because cells
-are destroyed when 1/2 or greater of their neighbors exist, so that eventually only stable ordered structures and dead exists), and reaches a steady state in which all alive cells are oscillators. After this point, nothing new will happen,
-and continuing the simulation is no longer interesting. Once it's detected that every cell is either dead or an
+are destroyed when 1/2 or greater of their neighbors exist, so that eventually only stable ordered structures and dead
+cells exist), and reaches a steady state in which all alive cells are oscillators. After this point, nothing new will
+happen, and continuing the game is no longer interesting. Once it's detected that every cell is either dead or an
 oscillator, the game is ended, and a new one begins.
 
 ## History
@@ -147,5 +148,5 @@ oscillator, the game is ended, and a new one begins.
 2018/12 - 2019/01: original implementation in JS
 2019/01 - 2019/03: WebGL implementation
 2019/03 - 2019/07: WebGL2 implementation, to allow for multiple shader outputs and integer textures
-2019/07 - 2020/02: occasional tweaks, cleanup for GitHub arctic archive
+2019/07 - 2020/02: occasional tweaks, cleanup for GitHub arctic code vault
 ```
