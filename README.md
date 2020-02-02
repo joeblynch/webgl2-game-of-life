@@ -6,7 +6,7 @@ jump into the code, all the interesting stuff happens in [this shader](./shaders
 
 ## Controls
 ```
-[double click]            fullscreen (recommended)
+[double click] or [f]     fullscreen (recommended)
 [space]                   pause / resume
 [down]                    decrease speed
 [up]                      increase speed
