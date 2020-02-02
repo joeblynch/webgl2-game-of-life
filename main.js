@@ -292,7 +292,7 @@ function step() {
   _offscreen.colorTarget(4, _textures.oscCounts[1][frontIndex]);
   _app.drawFramebuffer(_offscreen);
 
-  // TODO: probably a lot more performant to use a buffer object
+  // TODO: probably a lot more performant to use an uniform buffer object
   _drawCalls.golStep.uniform('u_generation', _generation);
   _drawCalls.golStep.uniform('u_saturation_on', _saturation_on);
   _drawCalls.golStep.uniform('u_saturation_off', _saturation_off);
