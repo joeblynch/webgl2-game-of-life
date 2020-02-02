@@ -216,13 +216,13 @@ document.addEventListener('keydown', (e) => {
       break;
     case 173: // + (win on FF?)
     case 189: // -
-    if (e.shiftKey && _cellSize > 1) {
-      _cellSize--;
-      updateHash();
-      init(true);
-      reset();
-    }
-    break;
+      if (e.shiftKey && _cellSize > 1) {
+        _cellSize--;
+        updateHash();
+        init(true);
+        reset();
+      }
+      break;
     default:
       console.log(e.which);
   }
