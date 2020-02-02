@@ -13,7 +13,7 @@ uniform float u_saturation_off;
 uniform float u_lightness_on;
 uniform float u_lightness_off;
 
-// the universe state, each value is a cell. r: on/off state bit, gb: xy unit vector of cell's hue angle
+// the universe state, each texture pixel is a cell. red: on/off state bit, green/blue: x/y vector of cell's hue angle
 uniform isampler2D u_state;
 
 // the last 32 on/off states of each cell are remembered, to detect oscillators of up to 16P
@@ -35,7 +35,7 @@ layout(location=3) out vec4 cell_color_out;
 layout(location=4) out uvec4 osc_count_out_2;
 
 // set a lower bound on the number of oscillation repetitions, before a cell is has its saturation and lightness
-// modified this prevents short bursts of random oscillations from being highlighted or dimmed
+// modified. this prevents short bursts of random oscillations from being highlighted or dimmed
 const uint MIN_OSC_LEN = uint(8);
 
 // TODO: playing with making oscillators rotate their hue, possibly with a hue rotation velocity that gets inherited
@@ -59,7 +59,8 @@ const float LIGHTNESS[4] = float[4](
   0.26  // 111
 );
 
-// saturation and lightness config for oscillators with period 1-4 
+// saturation and lightness config for oscillators with period 1-4
+// TODO: handle P15
 const float SATURATION_OSC[5] = float[5](
   0.0,
   0.68,
@@ -140,8 +141,8 @@ void main() {
   ivec4 last_cell = texelFetch(u_state, coord, 0);
 
   // figure out where the "event horizon" is, and where we are relative to it
-  // this "universe" starts as a single empty point, surrounded by an event horizon which expands at the speed of light.
-  // we start at a generation of -1, just before the universe exists, in order to inject entropy just beyond the horizon
+  // this "universe" starts as a single empty point, surrounded by an event horizon, and expands at the speed of light.
+  // we start at a generation -2, just before the universe exists, in order to inject entropy just beyond the horizon
   int horizon_dist = u_generation + 1;
   int entropy_dist = horizon_dist + 1;
 
@@ -156,7 +157,7 @@ void main() {
     /*
     gen -2: universe does not yet exist, event horizon is external and will push a single cell of entropy in.
     gen -1: event horizon is entering as a single point. entropy is injected around that point.
-    gen  0: time starts and universe has a size of 1, that point steps forward using the neighboring event horizon,
+    gen  0: time starts and universe has a size of 1, that point steps forward using the neighboring event horizon.
     */
 
     // lookup neighbor state
@@ -174,9 +175,9 @@ void main() {
     uvec4 last_osc_count_1 = texelFetch(u_osc_count_1, coord, 0);
     uvec4 last_osc_count_2 = texelFetch(u_osc_count_2, coord, 0);
 
-    // calculate existence, without branching
-    int neighbors = nw.r + n.r + ne.r + w.r + e.r + sw.r + s.r + se.r;
     // standard Game of Life: born when 3 neighbors, survive when 2 or 3 neighbors
+    // calculate existence without branching
+    int neighbors = nw.r + n.r + ne.r + w.r + e.r + sw.r + s.r + se.r;
     next_cell.r = int(neighbors == 3) | (int(neighbors == 2) & last_cell.r);
     
     // some other interesting variations
@@ -214,8 +215,9 @@ void main() {
     float lightness_scale = LIGHTNESS_ON_SCALE * u_lightness_on;
 
     if (next_cell.r == 1) {
+      // cell as alive
       if ((last_history.r & uint(1)) == uint(0)) {
-        // cell is newly on, so it inherits its color from its parents
+        // cell is newly on, so it inherits its color from its three parents
         // calculate new hue vector by summing hue vectors of alive neighbors
         hue_vec = ivec2(normalize(vec2(
           nw.r * nw.gb + n.r * n.gb + ne.r * ne.gb +
@@ -225,7 +227,7 @@ void main() {
       }
 
       if (min_p == uint(0)) {
-        // no osc match, so this is an active cell
+        // no oscillator match, so this is an active cell
         uint recent = last_history.r & uint(3);
         saturation = SATURATION[recent] * saturation_scale;
         lightness = LIGHTNESS[recent] * lightness_scale;
@@ -240,7 +242,7 @@ void main() {
         lightness = LIGHTNESS_OSC[min_p] * lightness_scale;
       }
     } else {
-      // cell is off, ease out to the off saturation and lightness
+      // cell is dead, ease out to the off saturation and lightness
       float p1_factor = min(1.0, float(next_osc_count_1[0]) / 255.0 * 4.0);
       float p1_ease_out = p1_factor * (2.0 - p1_factor);
 
@@ -254,8 +256,6 @@ void main() {
         LIGHTNESS_OFF * LIGHTNESS_OFF_SCALE * u_lightness_off,
         p1_ease_out * 0.84
       );
-      // saturation = SATURATION_OFF * SATURATION_OFF_SCALE * u_saturation_off * p1_ease_out * 0.84;
-      // lightness = LIGHTNESS_OFF * LIGHTNESS_OFF_SCALE * u_lightness_off * p1_ease_out * 0.84;
     }
   } else if (
     ((coord.x == center.x - horizon_dist || coord.x == center.x + horizon_dist) &&
@@ -263,8 +263,8 @@ void main() {
     ((coord.y == center.y - horizon_dist || coord.y == center.y + horizon_dist) &&
       coord.x >= center.x - horizon_dist && coord.x <= center.x + horizon_dist)
   ) {
-    // we're at the event horizon. this cell has entered the universe, and affects the state of its neighbors inside
-    // the universe. time doesn't tick here, because some of its neighbors are still beyond the event horizon, and
+    // we're in the event horizon. this cell has entered the universe, and affects the state of its neighbors inside
+    // the universe. time does not tick here, because some of its neighbors are still beyond the event horizon, and
     // are not part of the universe's state yet.
     next_cell = last_cell;
 
@@ -284,9 +284,10 @@ void main() {
       coord.x >= center.x - entropy_dist && coord.x <= center.x + entropy_dist)
   ) {
     // we're just beyond the event horizon, inject some entropy into the state grid, ready for its neighbors to
-    // interact with, starting the next generation.
+    // interact with starting the next generation.
     next_cell = texelFetch(u_entropy, coord, 0);
 
+    // make the cell barely visible, as it is just about to enter the event horizon
     hue_vec = next_cell.gb;
     if (next_cell.r == 0) {
       saturation = 0.0;
@@ -296,7 +297,7 @@ void main() {
       lightness = 0.2;
     }
   } else {
-    // we're outside the universe, nothing to see here, move along.
+    // we're outside the universe. nothing to see here, move along.
     next_cell = ivec4(0);
 
     hue_vec = ivec2(0);
