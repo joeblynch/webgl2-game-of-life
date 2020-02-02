@@ -34,15 +34,15 @@ layout(location=2) out uvec4 osc_count_out_1;
 layout(location=3) out vec4 cell_color_out;
 layout(location=4) out uvec4 osc_count_out_2;
 
-// set a lower bound on the number of oscillation repitions, before a cell is has its saturation and lightness modified
-// this prevents short bursts of random oscillations from being highlighted or dimmed
+// set a lower bound on the number of oscillation repetitions, before a cell is has its saturation and lightness
+// modified this prevents short bursts of random oscillations from being highlighted or dimmed
 const uint MIN_OSC_LEN = uint(8);
 
-// TODO: playing with making osciallators rotate their hue, possibly with a hue rotation velocity that gets inherited
+// TODO: playing with making oscillators rotate their hue, possibly with a hue rotation velocity that gets inherited
 //       by new cells. Works for a bit, and then stops for some reason.
 const float HUE_SHIFT_P_FACTOR = 2.0;
 
-// TODO: adjustable global brightsness, and adijustment at each level inc. off
+// TODO: adjustable global brightness, and adjustment at each level inc. off
 
 // saturation and lightness config for on cells, based on prior two states
 const float SATURATION[4] = float[4](
@@ -59,7 +59,7 @@ const float LIGHTNESS[4] = float[4](
   0.26  // 111
 );
 
-// sasturation and lightness config for oscillators with period 1-4 
+// saturation and lightness config for oscillators with period 1-4 
 const float SATURATION_OSC[5] = float[5](
   0.0,
   0.68,
@@ -85,7 +85,7 @@ const float SATURATION_OFF_SCALE = 1.0 / SATURATION_OFF;
 const float LIGHTNESS_ON_SCALE = 1.0 / LIGHTNESS[0];
 const float LIGHTNESS_OFF_SCALE = 1.0 / LIGHTNESS_OFF;
 
-// most frequent osciallator periods to check for
+// most frequent oscillator periods to check for
 // NOTE: MUST be in ascending order
 const uint OSCILLATOR_PERIODS[5] = uint[5](
   uint(1),
@@ -174,13 +174,13 @@ void main() {
     uvec4 last_osc_count_1 = texelFetch(u_osc_count_1, coord, 0);
     uvec4 last_osc_count_2 = texelFetch(u_osc_count_2, coord, 0);
 
-    // calculate existance, without branching
+    // calculate existence, without branching
     int neighbors = nw.r + n.r + ne.r + w.r + e.r + sw.r + s.r + se.r;
     // standard Game of Life: born when 3 neighbors, survive when 2 or 3 neighbors
     next_cell.r = int(neighbors == 3) | (int(neighbors == 2) & last_cell.r);
     
     // some other interesting variations
-    // next_cell.r = int(neighbors == 3) | int(neighbors == 4) | (int(nei9ghbors == 2) & last_cell.r);
+    // next_cell.r = int(neighbors == 3) | int(neighbors == 4) | (int(neighbors == 2) & last_cell.r);
     // next_cell.r = int(neighbors == 3) | int(neighbors == 1) | (int(neighbors == 2) & last_cell.r);
     // next_cell.r = int(neighbors == 3) | int(neighbors == 5) | (int(neighbors == 2) & last_cell.r);
 
@@ -264,11 +264,11 @@ void main() {
       coord.x >= center.x - horizon_dist && coord.x <= center.x + horizon_dist)
   ) {
     // we're at the event horizon. this cell has entered the universe, and affects the state of its neighbors inside
-    // the universe. time doesn't tick here, because some of its neightbors are still beyond the event horizon, and
+    // the universe. time doesn't tick here, because some of its neighbors are still beyond the event horizon, and
     // are not part of the universe's state yet.
     next_cell = last_cell;
 
-    // light up the cell as it crosses the eevnt horizon
+    // light up the cell as it crosses the event horizon
     hue_vec = next_cell.gb;
     if (next_cell.r == 0) {
       saturation = 0.0;
@@ -335,44 +335,44 @@ void main() {
 
 // hsl convert functions from here: https://github.com/Jam3/glsl-hsl2rgb/blob/master/index.glsl
 float hue2rgb(float f1, float f2, float hue) {
-    if (hue < 0.0)
-        hue += 1.0;
-    else if (hue > 1.0)
-        hue -= 1.0;
-    float res;
-    if ((6.0 * hue) < 1.0)
-        res = f1 + (f2 - f1) * 6.0 * hue;
-    else if ((2.0 * hue) < 1.0)
-        res = f2;
-    else if ((3.0 * hue) < 2.0)
-        res = f1 + (f2 - f1) * ((2.0 / 3.0) - hue) * 6.0;
-    else
-        res = f1;
-    return res;
+  if (hue < 0.0)
+    hue += 1.0;
+  else if (hue > 1.0)
+    hue -= 1.0;
+  float res;
+  if ((6.0 * hue) < 1.0)
+    res = f1 + (f2 - f1) * 6.0 * hue;
+  else if ((2.0 * hue) < 1.0)
+    res = f2;
+  else if ((3.0 * hue) < 2.0)
+    res = f1 + (f2 - f1) * ((2.0 / 3.0) - hue) * 6.0;
+  else
+    res = f1;
+  return res;
 }
 
 vec3 hsl2rgb(vec3 hsl) {
-    vec3 rgb;
+  vec3 rgb;
 
-    if (hsl.y == 0.0) {
-        rgb = vec3(hsl.z); // Luminance
-    } else {
-        float f2;
+  if (hsl.y == 0.0) {
+    rgb = vec3(hsl.z); // Luminance
+  } else {
+    float f2;
 
-        if (hsl.z < 0.5)
-            f2 = hsl.z * (1.0 + hsl.y);
-        else
-            f2 = hsl.z + hsl.y - hsl.y * hsl.z;
+    if (hsl.z < 0.5)
+      f2 = hsl.z * (1.0 + hsl.y);
+    else
+      f2 = hsl.z + hsl.y - hsl.y * hsl.z;
 
-        float f1 = 2.0 * hsl.z - f2;
+    float f1 = 2.0 * hsl.z - f2;
 
-        rgb.r = hue2rgb(f1, f2, hsl.x + (1.0/3.0));
-        rgb.g = hue2rgb(f1, f2, hsl.x);
-        rgb.b = hue2rgb(f1, f2, hsl.x - (1.0/3.0));
-    }
-    return rgb;
+    rgb.r = hue2rgb(f1, f2, hsl.x + (1.0/3.0));
+    rgb.g = hue2rgb(f1, f2, hsl.x);
+    rgb.b = hue2rgb(f1, f2, hsl.x - (1.0/3.0));
+  }
+  return rgb;
 }
 
 vec3 hsl2rgb(float h, float s, float l) {
-    return hsl2rgb(vec3(h, s, l));
+  return hsl2rgb(vec3(h, s, l));
 }
