@@ -223,7 +223,7 @@ document.addEventListener('keydown', (e) => {
       e.preventDefault();
       break;
     case 70:  // f
-      requestFullscreen();
+      toggleFullscreen();
       break;
     case 72:  // h
       toggleHelp();
@@ -271,11 +271,15 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-function requestFullscreen() {
-  document.body.requestFullscreen({ navigationUI: 'hide' });
+function toggleFullscreen() {
+  if (document.fullscreenElement) { 
+    document.exitFullscreen();
+  } else {
+    document.body.requestFullscreen({ navigationUI: 'hide' });
+  }
 }
 
-document.addEventListener('dblclick', requestFullscreen);
+document.addEventListener('dblclick', toggleFullscreen);
 
 function step() {
   const backIndex = Math.max(0, _generation % 2);
