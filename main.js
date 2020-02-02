@@ -13,13 +13,31 @@ function parseHash() {
     .split('&')
     .map(kv => kv.split('='))
     .reduce((hash, [key, value]) => {
-      if (value.match(/^-?\d+(?:\.\d+)?$/)) {
-        value = parseFloat(value);
+      if (key) {
+        if (value && value.match(/^-?\d+(?:\.\d+)?$/)) {
+          value = parseFloat(value);
+        }
+
+        hash[key] = value;
       }
 
-      hash[key] = value;
       return hash;
     }, {});
+}
+
+function updateHash() {
+  const options = parseHash();
+  options.alive = _cellAliveProbability;
+  options.size = _cellSize;
+  options.speed = _speed;
+  options.satOn = _saturation_on.toPrecision(3);
+  options.satOff = _saturation_off.toPrecision(3);
+  options.liOn = _lightness_on.toPrecision(3);
+  options.liOff = _lightness_off.toPrecision(3);
+
+  location.hash = Object.keys(options)
+    .map(key => `${key}=${options[key]}`)
+    .join('&');
 }
 
 // NOTE: seed entropy saved before 2019/11/08 uses a start generation of -1
@@ -51,11 +69,13 @@ let _lastActiveUpdate = 0;
 let _fps = 0;
 let _saturation_on = 0.98;
 let _saturation_off = 0.4;
-let _lightness_on = 0.6;
-let _lightness_off = 0.04;
+let _lightness_on = 0.76;
+let _lightness_off = 0.045;
 const _fpsEl = document.getElementById('fps');
 const _genEl = document.getElementById('gen');
 const _activeEl = document.getElementById('active');
+
+const ADJ_STEP = 0.005;
 
 (async function main() {
   await init();
@@ -118,70 +138,78 @@ document.addEventListener('keydown', (e) => {
       e.preventDefault();
       if (e.shiftKey) {
         if (e.ctrlKey) {
-          if (_saturation_on >= 0.01) {
-            _saturation_on -= 0.01;
+          if (_saturation_on >= ADJ_STEP) {
+            _saturation_on -= ADJ_STEP;
           }
         } else {
-          if (_saturation_off >= 0.01) {
-            _saturation_off -= 0.01;
+          if (_saturation_off >= ADJ_STEP) {
+            _saturation_off -= ADJ_STEP;
           }
         }
       } else {
         if (e.ctrlKey) {
-          if (_lightness_on >= 0.01) {
-            _lightness_on -= 0.01;
+          if (_lightness_on >= ADJ_STEP) {
+            _lightness_on -= ADJ_STEP;
           }
         } else {
-          if (_lightness_off >= 0.01) {
-            _lightness_off -= 0.01;
+          if (_lightness_off >= ADJ_STEP) {
+            _lightness_off -= ADJ_STEP;
           }
         }
       }
 
+      updateHash();
+
       break;
     case 38:  // UP
       _speed++;
+      updateHash();
       e.preventDefault();
       break;
     case 39:  // RIGHT
       e.preventDefault();
       if (e.shiftKey) {
         if (e.ctrlKey) {
-          if (_saturation_on < 0.99) {
-            _saturation_on += 0.01;
+          if (_saturation_on < 1 - ADJ_STEP) {
+            _saturation_on += ADJ_STEP;
           }
         } else {
-          if (_saturation_off < 0.99) {
-            _saturation_off += 0.01;
+          if (_saturation_off < 1 - ADJ_STEP) {
+            _saturation_off += ADJ_STEP;
           }
         }
       } else {
         if (e.ctrlKey) {
-          if (_lightness_on < 0.99) {
-            _lightness_on += 0.01;
+          if (_lightness_on < 1 - ADJ_STEP) {
+            _lightness_on += ADJ_STEP;
           }
         } else {
-          if (_lightness_off < 0.99) {
-            _lightness_off += 0.01;
+          if (_lightness_off < 1 - ADJ_STEP) {
+            _lightness_off += ADJ_STEP;
           }
         }
       }
+
+      updateHash();
+
       break;
     case 40:  // DOWN
       _speed--;
+      updateHash();
       e.preventDefault();
       break;
     case 82:  // r
       if (e.shiftKey) {
         reset();
       } else {
-        _generation = 0;
+        _generation = START_GENERATION;
       }
       break;
     case 61: // + (win on FF?)
     case 187: // +
       if (e.shiftKey) {
         _cellSize++;
+        updateHash();
         init(true);
         reset();
       }
@@ -190,6 +218,7 @@ document.addEventListener('keydown', (e) => {
     case 189: // -
     if (e.shiftKey && _cellSize > 1) {
       _cellSize--;
+      updateHash();
       init(true);
       reset();
     }
@@ -229,7 +258,8 @@ function step() {
 function draw() {
   _app.defaultDrawFramebuffer();
   _drawCalls.screen.texture('u_cell_colors', _textures.cellColors);
-  // _drawCalls.screen.texture('u_cell_colors', _textures.oscCount[0]);
+  // _drawCalls.screen.texture('u_cell_colors', _textures.oscCounts[0][_generation % 2]);
+  // _drawCalls.screen.texture('u_cell_colors', _textures.state[_generation % 2]);
   _drawCalls.screen.draw();
 }
 
