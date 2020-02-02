@@ -148,20 +148,28 @@ document.addEventListener('keydown', (e) => {
         if (e.ctrlKey) {
           if (_saturation_on >= ADJ_STEP) {
             _saturation_on -= ADJ_STEP;
+          } else {
+            _saturation_on = 0;
           }
         } else {
           if (_saturation_off >= ADJ_STEP) {
             _saturation_off -= ADJ_STEP;
+          } else {
+            _saturation_off = 0;
           }
         }
       } else {
         if (e.ctrlKey) {
           if (_lightness_on >= ADJ_STEP) {
             _lightness_on -= ADJ_STEP;
+          } else {
+            _lightness_on = 0;
           }
         } else {
           if (_lightness_off >= ADJ_STEP) {
             _lightness_off -= ADJ_STEP;
+          } else {
+            _lightness_off = 0;
           }
         }
       }
@@ -180,20 +188,28 @@ document.addEventListener('keydown', (e) => {
         if (e.ctrlKey) {
           if (_saturation_on < 1 - ADJ_STEP) {
             _saturation_on += ADJ_STEP;
+          } else {
+            _saturation_on = 1;
           }
         } else {
           if (_saturation_off < 1 - ADJ_STEP) {
             _saturation_off += ADJ_STEP;
+          } else {
+            _saturation_off = 1;
           }
         }
       } else {
         if (e.ctrlKey) {
           if (_lightness_on < 1 - ADJ_STEP) {
             _lightness_on += ADJ_STEP;
+          } else {
+            _lightness_on = 1;
           }
         } else {
           if (_lightness_off < 1 - ADJ_STEP) {
             _lightness_off += ADJ_STEP;
+          } else {
+            _lightness_off = 1;
           }
         }
       }
