@@ -221,6 +221,9 @@ document.addEventListener('keydown', (e) => {
       _textureDescEl.innerText = TEXTURE_DESC[_textureMode];
       updateHash();
       break;
+    case 85: // u
+      toggleUI();
+      break;
     case 61: // + (win on FF?)
     case 187: // +
       if (e.shiftKey) {
@@ -237,6 +240,11 @@ document.addEventListener('keydown', (e) => {
         updateHash();
         init(true);
         reset();
+      }
+      break;
+    case 191:  // ?
+      if (e.shiftKey) {
+        toggleHelp();
       }
       break;
     default:
@@ -513,4 +521,8 @@ function generateRandomState(width, height) {
 function toggleHelp() {
   const el = document.getElementById('help-container');
   el.classList.toggle('hidden');
+}
+
+function toggleUI() {
+  document.body.classList.toggle('hide-ui');
 }
