@@ -300,6 +300,7 @@ function getActiveCells() {
 
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, framebuffer);
   gl.readBuffer(gl.COLOR_ATTACHMENT2);
+  // FIXME: this fails in firefox on mac for some reason, with `readPixels: Incompatible format or type.`
   gl.readPixels(0, 0, _stateWidth, _stateHeight, PicoGL.RGBA_INTEGER, PicoGL.UNSIGNED_BYTE, _oscCounts_1);
 
   gl.readBuffer(gl.COLOR_ATTACHMENT4);
