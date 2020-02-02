@@ -143,6 +143,9 @@ cells exist), and reaches a steady state in which all alive cells are oscillator
 happen, and continuing the game is no longer interesting. Once it's detected that every cell is either dead or an
 oscillator, the game is ended, and a new one begins.
 
+Currently only oscillators with periods of 1, 2, 3, 4, and 15 are counted for end of the universe detection. Other
+oscillator periods are allowed to continue running, for their rarity.
+
 ## History
 ```
 2018/12 - 2019/01: original implementation in JS
