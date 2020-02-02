@@ -94,6 +94,8 @@ const ADJ_STEP = 0.005;
       if (frame % -_speed === 0) {
         step();
         _fps++;
+      } else {
+        return;
       }
     } else {
       // start at -1 so that we always do an extra step. otherwise 1 step for speed -1 and speed 0.
