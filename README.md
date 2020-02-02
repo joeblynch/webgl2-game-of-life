@@ -6,25 +6,25 @@ jump into the code, all the interesting stuff happens in [this shader](./shaders
 
 ## Controls
 ```
-[double click]	          fullscreen (recommended)
-[space]	                  pause / resume
-[down]    	              decrease speed
-[up]	                    increase speed
-[left]	                  decrease dead cell brightness
-[right]	                  increase dead cell brightness
-[shift]+[left]	          decrease dead cell saturation
-[shift]+[right]	          increase dead cell saturation
-[ctrl]+[left]	            decrease alive cell brightness
-[ctrl]+[right]	          increase alive cell brightness
-[ctrl]+[shift]+[left]	    decrease alive cell saturation
+[double click]            fullscreen (recommended)
+[space]                   pause / resume
+[down]                    decrease speed
+[up]                      increase speed
+[left]                    decrease dead cell brightness
+[right]                   increase dead cell brightness
+[shift]+[left]            decrease dead cell saturation
+[shift]+[right]           increase dead cell saturation
+[ctrl]+[left]             decrease alive cell brightness
+[ctrl]+[right]            increase alive cell brightness
+[ctrl]+[shift]+[left]     decrease alive cell saturation
 [shift]+[shift]+[right]   increase alive cell saturation
-[shift]+[-]	              decrease cell size (reset universe)
-[shift]+[+]	              increase cell size (reset universe)
-[h] or [?]	              toggle help
-[r]	                      restart universe (same entropy)
-[shift]+[r]	              reset universe (new entropy)
-[t]	                      toggle rendered texture
-[u]	                      toggle UI
+[shift]+[-]               decrease cell size (reset universe)
+[shift]+[+]               increase cell size (reset universe)
+[h] or [?]                toggle help
+[r]                       restart universe (same entropy)
+[shift]+[r]               reset universe (new entropy)
+[t]                       toggle rendered texture
+[u]                       toggle UI
 ```
 
 ## Additional Features
