@@ -210,10 +210,10 @@ void main() {
     // determine color
     hue_vec = last_cell.gb;
 
-    if (next_cell.r == 1) {
-      float saturation_scale = SATURATION_ON_SCALE * u_saturation_on;
-      float lightness_scale = LIGHTNESS_ON_SCALE * u_lightness_on;
+    float saturation_scale = SATURATION_ON_SCALE * u_saturation_on;
+    float lightness_scale = LIGHTNESS_ON_SCALE * u_lightness_on;
 
+    if (next_cell.r == 1) {
       if ((last_history.r & uint(1)) == uint(0)) {
         // cell is newly on, so it inherits its color from its parents
         // calculate new hue vector by summing hue vectors of alive neighbors
@@ -244,8 +244,16 @@ void main() {
       float p1_factor = min(1.0, float(next_osc_count_1[0]) / 255.0 * 4.0);
       float p1_ease_out = p1_factor * (2.0 - p1_factor);
 
-      saturation = mix(0.8, SATURATION_OFF * SATURATION_OFF_SCALE * u_saturation_off, p1_ease_out * 0.84);
-      lightness = mix(0.17, LIGHTNESS_OFF * LIGHTNESS_OFF_SCALE * u_lightness_off, p1_ease_out * 0.84);
+      saturation = mix(
+        SATURATION[3] * saturation_scale * 0.84,
+        SATURATION_OFF * SATURATION_OFF_SCALE * u_saturation_off,
+        p1_ease_out * 0.84
+      );
+      lightness = mix(
+        LIGHTNESS[3] * saturation_scale * 0.84,
+        LIGHTNESS_OFF * LIGHTNESS_OFF_SCALE * u_lightness_off,
+        p1_ease_out * 0.84
+      );
       // saturation = SATURATION_OFF * SATURATION_OFF_SCALE * u_saturation_off * p1_ease_out * 0.84;
       // lightness = LIGHTNESS_OFF * LIGHTNESS_OFF_SCALE * u_lightness_off * p1_ease_out * 0.84;
     }
