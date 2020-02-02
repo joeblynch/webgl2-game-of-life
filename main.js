@@ -7,8 +7,8 @@ const MAX_ENTROPY = 65536;
 const CELL_STATE_BYTES = 4;
 const CELL_OSC_COUNT_BYTES = 4;
 
-const TEXTURE_MODES = ['colors', 'state', 'oscCount'];
-const TEXTURE_DESC = ['' /* default */, 'raw state', 'oscillator counters'];
+const TEXTURE_MODES = ['colors', 'state', 'oscCount', 'active'];
+const TEXTURE_DESC = ['' /* default */, 'raw state', 'oscillator counters', 'active (non-oscillating) cells'];
 
 function parseHash() {
   return location.hash
@@ -299,6 +299,10 @@ function draw() {
       _drawCalls.screenOscCount.texture('u_osc_count', _textures.oscCounts[0][_generation % 2]);
       _drawCalls.screenOscCount.draw();
       break;
+    case 'active':
+      _drawCalls.screenActive.texture('u_osc_count', _textures.oscCounts[0][_generation % 2]);
+      _drawCalls.screenActive.draw();
+      break;
   }
 }
 
@@ -405,6 +409,7 @@ async function init(reInit = false) {
     _programs.screenColors = _app.createProgram(quadVertShader, await loadShaderSource('screen-colors.frag'));
     _programs.screenState = _app.createProgram(quadVertShader, await loadShaderSource('screen-state.frag'));
     _programs.screenOscCount = _app.createProgram(quadVertShader, await loadShaderSource('screen-osc-count.frag'));
+    _programs.screenActive = _app.createProgram(quadVertShader, await loadShaderSource('screen-active.frag'));
   }
 
   if (reInit) {
@@ -475,9 +480,11 @@ async function init(reInit = false) {
   _drawCalls.golStep = _app.createDrawCall(_programs.golStep, _vao);
   _drawCalls.screenColors = _app.createDrawCall(_programs.screenColors, _vao)
     .uniform('cell_size', _cellSize);
+  _drawCalls.screenState = _app.createDrawCall(_programs.screenState, _vao)
+    .uniform('cell_size', _cellSize);
   _drawCalls.screenOscCount = _app.createDrawCall(_programs.screenOscCount, _vao)
     .uniform('cell_size', _cellSize);
-  _drawCalls.screenState = _app.createDrawCall(_programs.screenState, _vao)
+  _drawCalls.screenActive = _app.createDrawCall(_programs.screenActive, _vao)
     .uniform('cell_size', _cellSize);
 
   if (!reInit) {
