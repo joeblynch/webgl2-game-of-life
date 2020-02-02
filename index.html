@@ -13,51 +13,191 @@
         overflow: hidden;
       }
 
+      #no-webgl2 {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        font-family: sans-serif;
+        animation-name: error-fade;
+        animation-duration: 6s;
+      }
+
+      @keyframes error-fade {
+        0% {
+          opacity: 0;
+        }
+
+        75% {
+          opacity: 0;
+        }
+
+        100% {
+          opacity: 1;
+        }
+      }
+
       #c {
         position: absolute;
       }
 
-      #fps {
+      #fps, #gen, #active, #toggle-help {
         position: absolute;
-        right: 10px;
         bottom: 10px;
         color: #af0;
         font-family: 'Menlo', monospace;
         font-size: 12px;
+        background-color: rgba(0, 0, 0, 0.75)
+      }
+
+      #fps {
+        right: 10px;
       }
 
       #gen {
-        position: absolute;
-        right: 100px;
-        bottom: 10px;
-        color: #af0;
-        font-family: 'Menlo', monospace;
-        font-size: 12px;
+        right: 50px;
       }
 
       #active {
+        right: 100px;
+      }
+
+      #toggle-help {
+        left: 10px;
+        cursor: pointer;
+      }
+
+      #help-container {
+        display: flex;
         position: absolute;
-        right: 150px;
-        bottom: 10px;
-        color: #af0;
-        font-family: 'Menlo', monospace;
-        font-size: 12px;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        color: #fff;
+        align-items: center;
+        font-family: monospace;
+        justify-content: center;
+        background-color: rgba(0,0,0,0.4);
+      }
+
+      #help-container.hidden {
+        display: none;
+      }
+
+      #help {
+        background-color: rgba(0,0,0,0.6);
+        border: 1px solid white;
+        padding: 16px;
+      }
+
+      #help h1 {
+        margin-top: 0;
+      }
+
+      #help a {
+        color: #fff !important;
+      }
+
+      #help table {
+        margin-top: 16px;
       }
     </style>
   </head>
   <body>
+    <div id="no-webgl2">
+      <!-- iOS with experimental implements nothing of WebGL2 except the interface that falsely reports support :-( -->
+      <!-- instead assume that the canvas will cover the "no WebGL2" message, and fade it in to give loading time -->
+      <h1>:( sorry...WebGL2 is required</h1>
+      <h4>try using Firefox or Chrome on a desktop or laptop</h4>
+    </div>
     <canvas id="c"></canvas>
     <div id="fps"></div>
     <div id="gen"></div>
     <div id="active"></div>
-    <!-- <div id="gauge">
-      <div id="gauge-label"></div>
-      <div id="gauge-meter-container">
-        <div id="gauge-meter"></div>
+    <div id="toggle-help" onclick="toggleHelp()">[?]</div>
+    <div id="help-container" class="hidden" onclick="toggleHelp()">
+      <div id="help">
+        <h1> WebGL2 Conway's Game of Life</h1>
+        <a href="https://www.linkedin.com/in/joe-lynch-aa931b58" target="_blank">Joe Lynch</a><br>
+        <a href="https://github.com/joeblynch/webgl2-game-of-life" target="_blank">GitHub</a>
+
+        <table>
+          <tbody>
+            <tr>
+              <td>[space]</td>
+              <td>pause / resume</td>
+            </tr>
+            <tr>
+              <td>[down]</td>
+              <td>decrease speed</td>
+            </tr>
+            <tr>
+              <td>[up]</td>
+              <td>increase speed</td>
+            </tr>
+            <tr>
+              <td>[left]</td>
+              <td>decrease dead cell brightness</td>
+            </tr>
+            <tr>
+              <td>[right]</td>
+              <td>increase dead cell brightness</td>
+            </tr>
+            <tr>
+              <td>[shift]+[left]</td>
+              <td>decrease dead cell saturation</td>
+            </tr>
+            <tr>
+              <td>[shift]+[right]</td>
+              <td>increase dead cell saturation</td>
+            </tr>
+            <tr>
+              <td>[ctrl]+[left]</td>
+              <td>decrease alive cell brightness</td>
+            </tr>
+            <tr>
+              <td>[ctrl]+[right]</td>
+              <td>increase alive cell brightness</td>
+            </tr>
+            <tr>
+              <td>[ctrl]+[shift]+[left]</td>
+              <td>decrease alive cell saturation</td>
+            </tr>
+            <tr>
+              <td>[shift]+[shift]+[right]</td>
+              <td>increase alive cell saturation</td>
+            </tr>
+            <tr>
+              <td>[shift]+[-]</td>
+              <td>decrease cell size (reset universe)</td>
+            </tr>
+            <tr>
+              <td>[shift]+[+]</td>
+              <td>increase cell size (reset universe)</td>
+            </tr>
+            <tr>
+              <td>[h]</td>
+              <td>toggle help</td>
+            </tr>
+            <tr>
+              <td>[r]</td>
+              <td>restart universe (same entropy)</td>
+            </tr>
+            <tr>
+              <td>[shift]+[r]</td>
+              <td>reset universe (new entropy)</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-      <div id="gauge-value"></div>
-    </div> -->
-    <!-- <script src="lib/picogl.min.js"></script> -->
+    </div>
     <script src="lib/picogl.js"></script>
     <script src="main.js"></script>
   </body>

@@ -200,6 +200,9 @@ document.addEventListener('keydown', (e) => {
       updateHash();
       e.preventDefault();
       break;
+    case 72:  // h
+      toggleHelp();
+      break;
     case 82:  // r
       if (e.shiftKey) {
         reset();
@@ -228,6 +231,10 @@ document.addEventListener('keydown', (e) => {
     default:
       console.log(e.which);
   }
+});
+
+document.addEventListener('dblclick', () => {
+  document.body.requestFullscreen({ navigationUI: 'hide' });
 });
 
 function step() {
@@ -472,4 +479,9 @@ function generateRandomState(width, height) {
   }
 
   return state;
+}
+
+function toggleHelp() {
+  const el = document.getElementById('help-container');
+  el.classList.toggle('hidden');
 }
