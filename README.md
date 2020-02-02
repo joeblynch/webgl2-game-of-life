@@ -141,10 +141,7 @@ and continuing the simulation is no longer interesting. Once it's detected that 
 oscillator, the game is ended, and a new one begins.
 
 ## History
-2018/12 - 2019/01: original implementation in JS
-
-2019/01 - 2019/03: WebGL implementation
-
-2019/03 - 2019/07: WebGL2 implementation, to allow for multiple shader outputs and integer textures
-
-019/07 - 2020/02: occasional tweaks, cleanup for GitHub arctic archive
+- 2018/12 - 2019/01: original implementation in JS
+- 2019/01 - 2019/03: WebGL implementation
+- 2019/03 - 2019/07: WebGL2 implementation, to allow for multiple shader outputs and integer textures
+- 019/07 - 2020/02: occasional tweaks, cleanup for GitHub arctic archive
