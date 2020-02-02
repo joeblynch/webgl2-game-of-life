@@ -154,6 +154,11 @@ const float SATURATION[4] = float[4](
 );
 ```
 
+#### Fade out dead cells
+Using the P1 counter for dead cells, the duration since the cell was last alive is tracked for the last 255 generations.
+The renderer is currently configured to draw a cubic ease out across the last 64 generations, creating a glow around
+active lifeforms, and a fading trail behind spaceships.
+
 #### End of the universe detection
 _FIXME: this does not work in firefox on mac, for some reason it fails to read the oscillator count textures._
 
