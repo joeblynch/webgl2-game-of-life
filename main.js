@@ -7,6 +7,9 @@ const MAX_ENTROPY = 65536;
 const CELL_STATE_BYTES = 4;
 const CELL_OSC_COUNT_BYTES = 4;
 
+const TEXTURE_MODES = ['colors', 'state', 'oscCount'];
+const TEXTURE_DESC = ['' /* default */, 'raw state', 'oscillator counters'];
+
 function parseHash() {
   return location.hash
     .substr(1)
@@ -34,6 +37,7 @@ function updateHash() {
   options.satOff = _saturation_off.toPrecision(3);
   options.liOn = _lightness_on.toPrecision(3);
   options.liOff = _lightness_off.toPrecision(3);
+  options.texture = _textureMode;
 
   location.hash = Object.keys(options)
     .map(key => `${key}=${options[key]}`)
@@ -51,6 +55,11 @@ const options = parseHash();
 let _cellAliveProbability = options.alive >= 0 && options.alive <= 1 ? options.alive : 0.5;
 let _cellSize = options.size || DEFAULT_CELL_SIZE;
 let _speed = typeof options.speed === 'number' ? options.speed : -5;
+let _saturation_on = typeof options.satOn === 'number' ? options.satOn : 0.98;
+let _saturation_off = typeof options.satOff === 'number' ? options.satOff : 0.4;
+let _lightness_on = typeof options.liOn === 'number' ? options.liOn : 0.76;
+let _lightness_off = typeof options.liOff === 'number' ? options.liOff : 0.045;
+let _textureMode = options.texture >= 0 && options.texture < TEXTURE_MODES.length ? options.texture : 0;
 let _oscCounts_1;
 let _oscCounts32_1;
 let _oscCounts_2;
@@ -67,13 +76,10 @@ let _running = true;
 let _lastFPSUpdate = 0;
 let _lastActiveUpdate = 0;
 let _fps = 0;
-let _saturation_on = 0.98;
-let _saturation_off = 0.4;
-let _lightness_on = 0.76;
-let _lightness_off = 0.045;
 const _fpsEl = document.getElementById('fps');
 const _genEl = document.getElementById('gen');
 const _activeEl = document.getElementById('active');
+const _textureDescEl = document.getElementById('texture-desc');
 
 const ADJ_STEP = 0.005;
 
@@ -210,6 +216,11 @@ document.addEventListener('keydown', (e) => {
         _generation = START_GENERATION;
       }
       break;
+    case 84:  // t
+      _textureMode = (_textureMode + 1) % TEXTURE_MODES.length;
+      _textureDescEl.innerText = TEXTURE_DESC[_textureMode];
+      updateHash();
+      break;
     case 61: // + (win on FF?)
     case 187: // +
       if (e.shiftKey) {
@@ -266,10 +277,21 @@ function step() {
 
 function draw() {
   _app.defaultDrawFramebuffer();
-  _drawCalls.screen.texture('u_cell_colors', _textures.cellColors);
-  // _drawCalls.screen.texture('u_cell_colors', _textures.oscCounts[0][_generation % 2]);
-  // _drawCalls.screen.texture('u_cell_colors', _textures.state[_generation % 2]);
-  _drawCalls.screen.draw();
+
+  switch (TEXTURE_MODES[_textureMode]) {
+    case 'colors':
+      _drawCalls.screenColors.texture('u_cell_colors', _textures.cellColors);
+      _drawCalls.screenColors.draw();
+      break;
+    case 'state':
+      _drawCalls.screenState.texture('u_state', _textures.state[_generation % 2]);
+      _drawCalls.screenState.draw();
+      break;
+    case 'oscCount':
+      _drawCalls.screenOscCount.texture('u_osc_count', _textures.oscCounts[0][_generation % 2]);
+      _drawCalls.screenOscCount.draw();
+      break;
+  }
 }
 
 function reset() {
@@ -372,7 +394,9 @@ async function init(reInit = false) {
     const quadVertSource = await loadShaderSource('quad.vert');
     const quadVertShader = _app.createShader(PicoGL.VERTEX_SHADER, quadVertSource);
     _programs.golStep = _app.createProgram(quadVertShader, await loadShaderSource('gol-step.frag'));
-    _programs.screen = _app.createProgram(quadVertShader, await loadShaderSource('screen.frag'));
+    _programs.screenColors = _app.createProgram(quadVertShader, await loadShaderSource('screen-colors.frag'));
+    _programs.screenState = _app.createProgram(quadVertShader, await loadShaderSource('screen-state.frag'));
+    _programs.screenOscCount = _app.createProgram(quadVertShader, await loadShaderSource('screen-osc-count.frag'));
   }
 
   if (reInit) {
@@ -441,7 +465,11 @@ async function init(reInit = false) {
   });
 
   _drawCalls.golStep = _app.createDrawCall(_programs.golStep, _vao);
-  _drawCalls.screen = _app.createDrawCall(_programs.screen, _vao)
+  _drawCalls.screenColors = _app.createDrawCall(_programs.screenColors, _vao)
+    .uniform('cell_size', _cellSize);
+  _drawCalls.screenOscCount = _app.createDrawCall(_programs.screenOscCount, _vao)
+    .uniform('cell_size', _cellSize);
+  _drawCalls.screenState = _app.createDrawCall(_programs.screenState, _vao)
     .uniform('cell_size', _cellSize);
 
   if (!reInit) {

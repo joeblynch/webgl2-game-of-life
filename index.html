@@ -47,13 +47,17 @@
         position: absolute;
       }
 
-      #fps, #gen, #active, #toggle-help {
+      #fps, #gen, #active, #toggle-help, #texture-desc {
         position: absolute;
         bottom: 10px;
         color: #af0;
         font-family: 'Menlo', monospace;
         font-size: 12px;
         background-color: rgba(0, 0, 0, 0.75)
+      }
+
+      #texture-desc {
+        left: 50px;
       }
 
       #fps {
@@ -118,10 +122,11 @@
       <h4>try using Firefox or Chrome on a desktop or laptop</h4>
     </div>
     <canvas id="c"></canvas>
+    <div id="toggle-help" onclick="toggleHelp()">[?]</div>
+    <div id="texture-desc"></div>
     <div id="fps"></div>
     <div id="gen"></div>
     <div id="active"></div>
-    <div id="toggle-help" onclick="toggleHelp()">[?]</div>
     <div id="help-container" class="hidden" onclick="toggleHelp()">
       <div id="help">
         <h1> WebGL2 Conway's Game of Life</h1>
@@ -198,11 +203,15 @@
               <td>[shift]+[r]</td>
               <td>reset universe (new entropy)</td>
             </tr>
+            <tr>
+              <td>[t]</td>
+              <td>toggle rendered texture</td>
+            </tr>
           </tbody>
         </table>
       </div>
     </div>
-    <script src="lib/picogl.js"></script>
+    <script src="lib/picogl.min.js"></script>
     <script src="main.js"></script>
   </body>
 </html>
