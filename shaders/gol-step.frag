@@ -54,8 +54,8 @@ const float SATURATION[4] = float[4](
 
 const float LIGHTNESS[4] = float[4](
   0.6,  // 001
-  0.36, // 011
-  0.41, // 101
+  0.46, // 011
+  0.51, // 101
   0.26  // 111
 );
 
@@ -70,7 +70,7 @@ const float SATURATION_OSC[5] = float[5](
 
 const float LIGHTNESS_OSC[5] = float[5](
   0.0,
-  0.24,
+  0.21,
   0.26,
   0.65,
   0.65
@@ -245,12 +245,12 @@ void main() {
       float p1_ease_out = p1_factor * (2.0 - p1_factor);
 
       saturation = mix(
-        SATURATION[3] * saturation_scale * 0.84,
+        SATURATION[3] * saturation_scale * 0.78,
         SATURATION_OFF * SATURATION_OFF_SCALE * u_saturation_off,
         p1_ease_out * 0.84
       );
       lightness = mix(
-        LIGHTNESS[3] * saturation_scale * 0.84,
+        LIGHTNESS[3] * saturation_scale * 0.78,
         LIGHTNESS_OFF * LIGHTNESS_OFF_SCALE * u_lightness_off,
         p1_ease_out * 0.84
       );
@@ -305,7 +305,6 @@ void main() {
 
     next_osc_count_1 = uvec4(255);
   }
-
 
   // calculate the color from the hsl and hue shift
   float hue_deg = atan(float(hue_vec.y), float(hue_vec.x)) * RAD_TO_DEG;
