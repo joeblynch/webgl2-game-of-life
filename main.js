@@ -430,11 +430,14 @@ async function init(reInit = false) {
 
     const quadVertSource = await loadShaderSource('quad.vert');
     const quadVertShader = _app.createShader(PicoGL.VERTEX_SHADER, quadVertSource);
-    _programs.golStep = _app.createProgram(quadVertShader, await loadShaderSource('gol-step.frag'));
-    _programs.screenColors = _app.createProgram(quadVertShader, await loadShaderSource('screen-colors.frag'));
-    _programs.screenState = _app.createProgram(quadVertShader, await loadShaderSource('screen-state.frag'));
-    _programs.screenOscCount = _app.createProgram(quadVertShader, await loadShaderSource('screen-osc-count.frag'));
-    _programs.screenActive = _app.createProgram(quadVertShader, await loadShaderSource('screen-active.frag'));
+
+    const [golStep, screenColors, screenState, screenOscCount, screenActive] = await Promise.all(
+      ['gol-step', 'screen-colors', 'screen-state', 'screen-osc-count', 'screen-active'].map(async shader =>
+        _app.createProgram(quadVertShader, await loadShaderSource(`${shader}.frag`))
+      )
+    );
+
+    Object.assign(_programs, { golStep, screenColors, screenState, screenOscCount, screenActive });
   }
 
   if (reInit) {
