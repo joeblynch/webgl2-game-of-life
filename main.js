@@ -7,8 +7,15 @@ const MAX_ENTROPY = 65536;
 const CELL_STATE_BYTES = 4;
 const CELL_OSC_COUNT_BYTES = 4;
 
-const TEXTURE_MODES = ['colors', 'alive', 'active', 'oscCount', 'state'];
-const TEXTURE_DESC = ['' /* color composite */, 'alive bit', 'active (non-oscillating) alive cells', 'oscillator counters', 'raw state (r: alive, gb: xy hue vector)'];
+const TEXTURE_MODES = ['colors', 'alive', 'active', 'oscCount', 'state', 'hue'];
+const TEXTURE_DESC = [
+  '' /* color composite */,
+  'alive bit',
+  'active (non-oscillating) alive cells',
+  'oscillator counters',
+  'raw state (r: alive, gb: xy hue vector)',
+  'hue state'
+];
 
 function parseHash() {
   return location.hash
@@ -281,18 +288,6 @@ function toggleFullscreen() {
 
 document.addEventListener('dblclick', toggleFullscreen);
 
-const mc = new Hammer.Manager(document.body, {
-  recognizers: [
-    [Hammer.Pan, { direction: Hammer.DIRECTION_ALL }],
-    [Hammer.Pinch],
-    [Hammer.Tap]
-  ]
-});
-
-mc.on('pan pinch doubletap', (e) => {
-  console.log(e);
-});
-
 function step() {
   const backIndex = Math.max(0, _generation % 2);
   const frontIndex = (backIndex + 1) % 2;
@@ -335,6 +330,10 @@ function draw() {
     case 'state':
       _drawCalls.screenState.texture('u_state', _textures.state[_generation % 2]);
       _drawCalls.screenState.draw();
+      break;
+    case 'hue':
+      _drawCalls.screenHue.texture('u_state', _textures.state[_generation % 2]);
+      _drawCalls.screenHue.draw();
       break;
     case 'oscCount':
       _drawCalls.screenOscCount.texture('u_osc_count', _textures.oscCounts[0][_generation % 2]);
@@ -449,13 +448,37 @@ async function init(reInit = false) {
     const quadVertSource = await loadShaderSource('quad.vert');
     const quadVertShader = _app.createShader(PicoGL.VERTEX_SHADER, quadVertSource);
 
-    const [golStep, screenColors, screenAlive, screenState, screenOscCount, screenActive] = await Promise.all(
-      ['gol-step', 'screen-colors', 'screen-alive', 'screen-state', 'screen-osc-count', 'screen-active'].map(
+    const [
+      golStep,
+      screenColors,
+      screenAlive,
+      screenState,
+      screenHue,
+      screenOscCount,
+      screenActive
+    ] = await Promise.all(
+      [
+        'gol-step',
+        'screen-colors',
+        'screen-alive',
+        'screen-state',
+        'screen-hue',
+        'screen-osc-count',
+        'screen-active'
+      ].map(
         async shader => _app.createProgram(quadVertShader, await loadShaderSource(`${shader}.frag`))
       )
     );
 
-    Object.assign(_programs, { golStep, screenColors, screenAlive, screenState, screenOscCount, screenActive });
+    Object.assign(_programs, {
+      golStep,
+      screenColors,
+      screenAlive,
+      screenState,
+      screenHue,
+      screenOscCount,
+      screenActive
+    });
   }
 
   if (reInit) {
@@ -529,6 +552,8 @@ async function init(reInit = false) {
   _drawCalls.screenAlive = _app.createDrawCall(_programs.screenAlive, _vao)
     .uniform('cell_size', _cellSize);
   _drawCalls.screenState = _app.createDrawCall(_programs.screenState, _vao)
+    .uniform('cell_size', _cellSize);
+  _drawCalls.screenHue = _app.createDrawCall(_programs.screenHue, _vao)
     .uniform('cell_size', _cellSize);
   _drawCalls.screenOscCount = _app.createDrawCall(_programs.screenOscCount, _vao)
     .uniform('cell_size', _cellSize);
