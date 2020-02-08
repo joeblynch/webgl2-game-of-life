@@ -1,5 +1,5 @@
 // NOTE: This code is ugly because it's uninteresting, so as little time was spent on it as possible.
-//       The magic is happens in gol-step.frag.
+//       The magic happens in gol-step.frag.
 
 const DEFAULT_CELL_SIZE = Math.floor(3 * window.devicePixelRatio);
 
@@ -9,10 +9,10 @@ const CELL_OSC_COUNT_BYTES = 4;
 
 const TEXTURE_MODES = ['colors', 'alive', 'active', 'oscCount', 'state', 'hue'];
 const TEXTURE_DESC = [
-  '' /* color composite */,
+  '', // color composite
   'alive bit',
   'active (non-oscillating) alive cells',
-  'oscillator counters',
+  'oscillator counters (r: P2, g: P3, b: P4)',
   'raw state (r: alive, gb: xy hue vector)',
   'hue state'
 ];
