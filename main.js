@@ -7,8 +7,8 @@ const MAX_ENTROPY = 65536;
 const CELL_STATE_BYTES = 4;
 const CELL_OSC_COUNT_BYTES = 4;
 
-const TEXTURE_MODES = ['colors', 'state', 'oscCount', 'active'];
-const TEXTURE_DESC = ['' /* default */, 'raw state', 'oscillator counters', 'active (non-oscillating) cells'];
+const TEXTURE_MODES = ['colors', 'alive', 'active', 'oscCount', 'state'];
+const TEXTURE_DESC = ['' /* color composite */, 'alive bit', 'active (non-oscillating) alive cells', 'oscillator counters', 'raw state (r: alive, gb: xy hue vector)'];
 
 function parseHash() {
   return location.hash
@@ -281,6 +281,18 @@ function toggleFullscreen() {
 
 document.addEventListener('dblclick', toggleFullscreen);
 
+const mc = new Hammer.Manager(document.body, {
+  recognizers: [
+    [Hammer.Pan, { direction: Hammer.DIRECTION_ALL }],
+    [Hammer.Pinch],
+    [Hammer.Tap]
+  ]
+});
+
+mc.on('pan pinch doubletap', (e) => {
+  console.log(e);
+});
+
 function step() {
   const backIndex = Math.max(0, _generation % 2);
   const frontIndex = (backIndex + 1) % 2;
@@ -315,6 +327,10 @@ function draw() {
     case 'colors':
       _drawCalls.screenColors.texture('u_cell_colors', _textures.cellColors);
       _drawCalls.screenColors.draw();
+      break;
+    case 'alive':
+      _drawCalls.screenAlive.texture('u_state', _textures.state[_generation % 2]);
+      _drawCalls.screenAlive.draw();
       break;
     case 'state':
       _drawCalls.screenState.texture('u_state', _textures.state[_generation % 2]);
@@ -413,7 +429,9 @@ async function init(reInit = false) {
     canvasEl.width = width;
     canvasEl.height = height;
     canvasEl.style.width = `${displayWidth}px`;
-    canvasEl.style.height = `${displayHeight}px`;
+    canvasEl.style.height = `${displayHeight}pzx`;
+
+    _textureDescEl.innerText = TEXTURE_DESC[_textureMode];
 
     _app = PicoGL.createApp(canvasEl);
 
@@ -431,13 +449,13 @@ async function init(reInit = false) {
     const quadVertSource = await loadShaderSource('quad.vert');
     const quadVertShader = _app.createShader(PicoGL.VERTEX_SHADER, quadVertSource);
 
-    const [golStep, screenColors, screenState, screenOscCount, screenActive] = await Promise.all(
-      ['gol-step', 'screen-colors', 'screen-state', 'screen-osc-count', 'screen-active'].map(async shader =>
-        _app.createProgram(quadVertShader, await loadShaderSource(`${shader}.frag`))
+    const [golStep, screenColors, screenAlive, screenState, screenOscCount, screenActive] = await Promise.all(
+      ['gol-step', 'screen-colors', 'screen-alive', 'screen-state', 'screen-osc-count', 'screen-active'].map(
+        async shader => _app.createProgram(quadVertShader, await loadShaderSource(`${shader}.frag`))
       )
     );
 
-    Object.assign(_programs, { golStep, screenColors, screenState, screenOscCount, screenActive });
+    Object.assign(_programs, { golStep, screenColors, screenAlive, screenState, screenOscCount, screenActive });
   }
 
   if (reInit) {
@@ -507,6 +525,8 @@ async function init(reInit = false) {
 
   _drawCalls.golStep = _app.createDrawCall(_programs.golStep, _vao);
   _drawCalls.screenColors = _app.createDrawCall(_programs.screenColors, _vao)
+    .uniform('cell_size', _cellSize);
+  _drawCalls.screenAlive = _app.createDrawCall(_programs.screenAlive, _vao)
     .uniform('cell_size', _cellSize);
   _drawCalls.screenState = _app.createDrawCall(_programs.screenState, _vao)
     .uniform('cell_size', _cellSize);
