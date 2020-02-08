@@ -105,6 +105,7 @@ const ADJ_STEP = 0.005;
     frame++;
     if (_speed < 0) {
       if (frame % -_speed === 0) {
+        _genEl.innerText = _generation;
         step();
         _fps++;
       } else {
@@ -116,9 +117,9 @@ const ADJ_STEP = 0.005;
         step();
         _fps++;
       }
-    }
 
-    _genEl.innerText = _generation;
+      _genEl.innerText = _generation - 1;
+    }
 
     draw();
 
@@ -298,7 +299,7 @@ function toggleFullscreen() {
 document.addEventListener('dblclick', toggleFullscreen);
 
 function step() {
-  const backIndex = Math.max(0, _generation % 2);
+  const backIndex = (_generation + (_generation < 0 ? 2 : 0)) % 2;
   const frontIndex = (backIndex + 1) % 2;
 
   _offscreen.colorTarget(0, _textures.state[frontIndex]);
@@ -325,6 +326,8 @@ function step() {
 }
 
 function draw() {
+  const frontIndex = (_generation + (_generation < 0 ? 2 : 0)) % 2;
+
   _app.defaultDrawFramebuffer();
 
   switch (TEXTURE_MODES[_textureMode]) {
@@ -333,23 +336,23 @@ function draw() {
       _drawCalls.screenColors.draw();
       break;
     case 'alive':
-      _drawCalls.screenAlive.texture('u_state', _textures.state[_generation % 2]);
+      _drawCalls.screenAlive.texture('u_state', _textures.state[frontIndex]);
       _drawCalls.screenAlive.draw();
       break;
     case 'state':
-      _drawCalls.screenState.texture('u_state', _textures.state[_generation % 2]);
+      _drawCalls.screenState.texture('u_state', _textures.state[frontIndex]);
       _drawCalls.screenState.draw();
       break;
     case 'hue':
-      _drawCalls.screenHue.texture('u_state', _textures.state[_generation % 2]);
+      _drawCalls.screenHue.texture('u_state', _textures.state[frontIndex]);
       _drawCalls.screenHue.draw();
       break;
     case 'oscCount':
-      _drawCalls.screenOscCount.texture('u_osc_count', _textures.oscCounts[0][_generation % 2]);
+      _drawCalls.screenOscCount.texture('u_osc_count', _textures.oscCounts[0][frontIndex]);
       _drawCalls.screenOscCount.draw();
       break;
     case 'active':
-      _drawCalls.screenActive.texture('u_osc_count', _textures.oscCounts[0][_generation % 2]);
+      _drawCalls.screenActive.texture('u_osc_count', _textures.oscCounts[0][frontIndex]);
       _drawCalls.screenActive.draw();
       break;
   }
