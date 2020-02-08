@@ -229,6 +229,15 @@ document.addEventListener('keydown', (e) => {
       updateHash();
       e.preventDefault();
       break;
+    case 49:  // 1-6
+    case 50:
+    case 51:
+    case 52:
+    case 53:
+    case 54:
+      _textureMode = e.which - 49;
+      _textureDescEl.innerText = TEXTURE_DESC[_textureMode];
+      break;
     case 70:  // f
       toggleFullscreen();
       break;
