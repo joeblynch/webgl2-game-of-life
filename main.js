@@ -242,6 +242,7 @@ document.addEventListener('keydown', (e) => {
     case 56:
       _textureMode = e.which - 49;
       _textureDescEl.innerText = TEXTURE_DESC[_textureMode];
+      draw();
       break;
     case 70:  // f
       toggleFullscreen();
@@ -260,6 +261,7 @@ document.addEventListener('keydown', (e) => {
       _textureMode = (_textureMode + 1) % TEXTURE_MODES.length;
       _textureDescEl.innerText = TEXTURE_DESC[_textureMode];
       updateHash();
+      draw();
       break;
     case 85: // u
       toggleUI();
