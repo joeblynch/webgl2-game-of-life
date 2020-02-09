@@ -356,7 +356,6 @@ function draw() {
       _drawCalls.screenMinOscCount.draw();
       break;
     case 'active':
-      _drawCalls.screenActive.texture('u_osc_count', _textures.oscCounts[0][frontIndex]);
       _drawCalls.screenActive.draw();
       break;
   }
@@ -589,6 +588,7 @@ async function init(reInit = false) {
     .texture('u_min_osc_count', _textures.minOscCount)
     .uniform('cell_size', _cellSize);
   _drawCalls.screenActive = _app.createDrawCall(_programs.screenActive, _vao)
+    .texture('u_min_osc_count', _textures.minOscCount)
     .uniform('cell_size', _cellSize);
 
   if (!reInit) {
