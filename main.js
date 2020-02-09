@@ -7,7 +7,7 @@ const MAX_ENTROPY = 65536;
 const CELL_STATE_BYTES = 4;
 const CELL_OSC_COUNT_BYTES = 4;
 
-const TEXTURE_MODES = ['colors', 'alive', 'active', 'oscCount', 'minOscCount', 'state', 'hue', 'p0Colors'];
+const TEXTURE_MODES = ['colors', 'alive', 'active', 'oscCount', 'minOscCount', 'state', 'hue'/*, 'p0Colors'*/];
 const TEXTURE_DESC = [
   '', // color composite
   'alive bit',
@@ -16,7 +16,7 @@ const TEXTURE_DESC = [
   'labeled oscillator counters',
   'raw state (r: alive, gb: xy hue vector)',
   'hue state',
-  'P0 (non-oscillating) alive cell colors'
+  // 'P0 (non-oscillating) alive cell colors'
 ];
 
 function parseHash() {
@@ -232,14 +232,12 @@ document.addEventListener('keydown', (e) => {
       updateHash();
       e.preventDefault();
       break;
-    case 49:  // 1-8
+    case 49:  // 1-6
     case 50:
     case 51:
     case 52:
     case 53:
     case 54:
-    case 55:
-    case 56:
       _textureMode = e.which - 49;
       _textureDescEl.innerText = TEXTURE_DESC[_textureMode];
       draw();
@@ -314,7 +312,7 @@ function step() {
   _offscreen.colorTarget(3, _textures.cellColors);
   _offscreen.colorTarget(4, _textures.oscCounts[1][frontIndex]);
   _offscreen.colorTarget(5, _textures.minOscCount);
-  _offscreen.colorTarget(6, _textures.p0Colors);
+  // _offscreen.colorTarget(6, _textures.p0Colors);
   _app.drawFramebuffer(_offscreen);
 
   // TODO: probably a lot more performant to use an uniform buffer object
@@ -517,7 +515,7 @@ async function init(reInit = false) {
     _textures.oscCounts.forEach(oscCounts => oscCounts.forEach(oscCount => oscCount.delete()));
     _textures.minOscCount.delete();
     _textures.cellColors.delete();
-    _textures.p0Colors.delete();
+    // _textures.p0Colors.delete();
   }
 
   const entropy = generateRandomState(_stateWidth, _stateHeight);
@@ -584,18 +582,18 @@ async function init(reInit = false) {
     magFilter: PicoGL.NEAREST
   });
 
-  _textures.p0Colors = _app.createTexture2D(_stateWidth, _stateHeight, {
-    minFilter: PicoGL.NEAREST,
-    magFilter: PicoGL.NEAREST
-  });
+  // _textures.p0Colors = _app.createTexture2D(_stateWidth, _stateHeight, {
+  //   minFilter: PicoGL.NEAREST,
+  //   magFilter: PicoGL.NEAREST
+  // });
 
   _drawCalls.golStep = _app.createDrawCall(_programs.golStep, _vao);
   _drawCalls.screenColors = _app.createDrawCall(_programs.screenColors, _vao)
     .texture('u_cell_colors', _textures.cellColors)
     .uniform('cell_size', _cellSize);
-  _drawCalls.p0Colors = _app.createDrawCall(_programs.screenColors, _vao)
-    .texture('u_cell_colors', _textures.p0Colors)
-    .uniform('cell_size', _cellSize);
+  // _drawCalls.p0Colors = _app.createDrawCall(_programs.screenColors, _vao)
+  //   .texture('u_cell_colors', _textures.p0Colors)
+  //   .uniform('cell_size', _cellSize);
   _drawCalls.screenAlive = _app.createDrawCall(_programs.screenAlive, _vao)
     .uniform('cell_size', _cellSize);
   _drawCalls.screenState = _app.createDrawCall(_programs.screenState, _vao)
