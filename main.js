@@ -356,6 +356,7 @@ function draw() {
       _drawCalls.screenMinOscCount.draw();
       break;
     case 'active':
+      _drawCalls.screenActive.texture('u_state', _textures.state[frontIndex]);
       _drawCalls.screenActive.draw();
       break;
   }
