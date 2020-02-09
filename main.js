@@ -7,12 +7,13 @@ const MAX_ENTROPY = 65536;
 const CELL_STATE_BYTES = 4;
 const CELL_OSC_COUNT_BYTES = 4;
 
-const TEXTURE_MODES = ['colors', 'alive', 'active', 'oscCount', 'state', 'hue'];
+const TEXTURE_MODES = ['colors', 'alive', 'active', 'oscCount', 'minOscCount', 'state', 'hue'];
 const TEXTURE_DESC = [
   '', // color composite
   'alive bit',
   'active (non-oscillating) alive cells',
   'oscillator counters (r: P2, g: P3, b: P4)',
+  'labeled oscillator counters',
   'raw state (r: alive, gb: xy hue vector)',
   'hue state'
 ];
@@ -307,6 +308,7 @@ function step() {
   _offscreen.colorTarget(2, _textures.oscCounts[0][frontIndex]);
   _offscreen.colorTarget(3, _textures.cellColors);
   _offscreen.colorTarget(4, _textures.oscCounts[1][frontIndex]);
+  _offscreen.colorTarget(5, _textures.minOscCount);
   _app.drawFramebuffer(_offscreen);
 
   // TODO: probably a lot more performant to use an uniform buffer object
@@ -332,7 +334,6 @@ function draw() {
 
   switch (TEXTURE_MODES[_textureMode]) {
     case 'colors':
-      _drawCalls.screenColors.texture('u_cell_colors', _textures.cellColors);
       _drawCalls.screenColors.draw();
       break;
     case 'alive':
@@ -350,6 +351,9 @@ function draw() {
     case 'oscCount':
       _drawCalls.screenOscCount.texture('u_osc_count', _textures.oscCounts[0][frontIndex]);
       _drawCalls.screenOscCount.draw();
+      break;
+    case 'minOscCount':
+      _drawCalls.screenMinOscCount.draw();
       break;
     case 'active':
       _drawCalls.screenActive.texture('u_osc_count', _textures.oscCounts[0][frontIndex]);
@@ -467,6 +471,7 @@ async function init(reInit = false) {
       screenState,
       screenHue,
       screenOscCount,
+      screenMinOscCount,
       screenActive
     ] = await Promise.all(
       [
@@ -476,6 +481,7 @@ async function init(reInit = false) {
         'screen-state',
         'screen-hue',
         'screen-osc-count',
+        'screen-min-osc-count',
         'screen-active'
       ].map(
         async shader => _app.createProgram(quadVertShader, await loadShaderSource(`${shader}.frag`))
@@ -489,6 +495,7 @@ async function init(reInit = false) {
       screenState,
       screenHue,
       screenOscCount,
+      screenMinOscCount,
       screenActive
     });
   }
@@ -548,6 +555,14 @@ async function init(reInit = false) {
     [createOscCountTexture(), createOscCountTexture()]
   ];
 
+  _textures.minOscCount = _app.createTexture2D(_stateWidth, _stateHeight, {
+    internalFormat: PicoGL.RG8UI,
+    format: PicoGL.RG_INTEGER,
+    type: PicoGL.UNSIGNED_INT,
+    minFilter: PicoGL.NEAREST,
+    magFilter: PicoGL.NEAREST
+  });
+
   _oscCounts_1 = new Uint8Array(_stateWidth * _stateHeight * 4);
   _oscCounts32_1 = new Uint32Array(_oscCounts_1.buffer)
   _oscCounts_2 = new Uint8Array(_stateWidth * _stateHeight * 4);
@@ -560,6 +575,7 @@ async function init(reInit = false) {
 
   _drawCalls.golStep = _app.createDrawCall(_programs.golStep, _vao);
   _drawCalls.screenColors = _app.createDrawCall(_programs.screenColors, _vao)
+    .texture('u_cell_colors', _textures.cellColors)
     .uniform('cell_size', _cellSize);
   _drawCalls.screenAlive = _app.createDrawCall(_programs.screenAlive, _vao)
     .uniform('cell_size', _cellSize);
@@ -568,6 +584,9 @@ async function init(reInit = false) {
   _drawCalls.screenHue = _app.createDrawCall(_programs.screenHue, _vao)
     .uniform('cell_size', _cellSize);
   _drawCalls.screenOscCount = _app.createDrawCall(_programs.screenOscCount, _vao)
+    .uniform('cell_size', _cellSize);
+  _drawCalls.screenMinOscCount = _app.createDrawCall(_programs.screenMinOscCount, _vao)
+    .texture('u_min_osc_count', _textures.minOscCount)
     .uniform('cell_size', _cellSize);
   _drawCalls.screenActive = _app.createDrawCall(_programs.screenActive, _vao)
     .uniform('cell_size', _cellSize);

@@ -33,6 +33,7 @@ layout(location=1) out uvec4 history_out;
 layout(location=2) out uvec4 osc_count_out_1;
 layout(location=3) out vec4 cell_color_out;
 layout(location=4) out uvec4 osc_count_out_2;
+layout(location=5) out uvec2 min_osc_count;
 
 // set a lower bound on the number of oscillation repetitions, before a cell is has its saturation and lightness
 // modified. this prevents short bursts of random oscillations from being highlighted or dimmed
@@ -133,6 +134,7 @@ void main() {
   uvec4 next_history;
   uvec4 next_osc_count_1;
   uvec4 next_osc_count_2;
+  uvec2 next_min_osc_count;
   float saturation, lightness;
   ivec2 hue_vec;
   float hue_shift = 0.0;
@@ -207,6 +209,19 @@ void main() {
         min_p = OSCILLATOR_PERIODS[i];
       }
     }
+
+    if (min_p == uint(0)) {
+      // this is an active cell. treat active cells as "P0" oscillators, and count them like other oscillators
+      next_osc_count_2[3] = last_osc_count_2[3] + uint(1);
+      max_len = next_osc_count_2[3];
+    } else {
+      // cell is an oscillator of a tracked period, reset P0 counter
+      next_osc_count_2[3] = uint(0);
+    }
+
+    // output the min oscillator period, and its count
+    next_min_osc_count.r = min_p;
+    next_min_osc_count.g = max_len;
 
     // determine color
     hue_vec = last_cell.gb;
@@ -331,6 +346,7 @@ void main() {
   history_out = next_history;
   osc_count_out_1 = next_osc_count_1;
   osc_count_out_2 = next_osc_count_2;
+  min_osc_count = next_min_osc_count;
 }
 
 // hsl convert functions from here: https://github.com/Jam3/glsl-hsl2rgb/blob/master/index.glsl
