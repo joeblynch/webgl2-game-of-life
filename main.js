@@ -16,7 +16,7 @@ const TEXTURE_DESC = [
   'labeled oscillator counters',
   'raw state (r: alive, gb: xy hue vector)',
   'hue state',
-  'P0 (non-oscillating) colors'
+  'P0 (non-oscillating) alive cell colors'
 ];
 
 function parseHash() {

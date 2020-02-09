@@ -344,7 +344,7 @@ void main() {
 
   next_cell_color = vec4(hsl2rgb(hue, saturation, lightness), 1.0);
 
-  if (min_p == uint(0)) {
+  if (min_p == uint(0) && next_cell.r == 1) {
     next_p0_color = next_cell_color;
   }
 
