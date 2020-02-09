@@ -7,15 +7,16 @@ const MAX_ENTROPY = 65536;
 const CELL_STATE_BYTES = 4;
 const CELL_OSC_COUNT_BYTES = 4;
 
-const TEXTURE_MODES = ['colors', 'alive', 'active', 'oscCount', 'minOscCount', 'state', 'hue'];
+const TEXTURE_MODES = ['colors', 'alive', 'active', 'oscCount', 'minOscCount', 'state', 'hue', 'p0Colors'];
 const TEXTURE_DESC = [
   '', // color composite
   'alive bit',
-  'active (non-oscillating) alive cells',
+  'P0 (non-oscillating) alive cells',
   'oscillator counters (r: P2, g: P3, b: P4)',
   'labeled oscillator counters',
   'raw state (r: alive, gb: xy hue vector)',
-  'hue state'
+  'hue state',
+  'P0 (non-oscillating) colors'
 ];
 
 function parseHash() {
@@ -231,12 +232,14 @@ document.addEventListener('keydown', (e) => {
       updateHash();
       e.preventDefault();
       break;
-    case 49:  // 1-6
+    case 49:  // 1-8
     case 50:
     case 51:
     case 52:
     case 53:
     case 54:
+    case 55:
+    case 56:
       _textureMode = e.which - 49;
       _textureDescEl.innerText = TEXTURE_DESC[_textureMode];
       break;
@@ -309,6 +312,7 @@ function step() {
   _offscreen.colorTarget(3, _textures.cellColors);
   _offscreen.colorTarget(4, _textures.oscCounts[1][frontIndex]);
   _offscreen.colorTarget(5, _textures.minOscCount);
+  _offscreen.colorTarget(6, _textures.p0Colors);
   _app.drawFramebuffer(_offscreen);
 
   // TODO: probably a lot more performant to use an uniform buffer object
@@ -335,6 +339,9 @@ function draw() {
   switch (TEXTURE_MODES[_textureMode]) {
     case 'colors':
       _drawCalls.screenColors.draw();
+      break;
+    case 'p0Colors':
+      _drawCalls.p0Colors.draw();
       break;
     case 'alive':
       _drawCalls.screenAlive.texture('u_state', _textures.state[frontIndex]);
@@ -506,7 +513,9 @@ async function init(reInit = false) {
     _textures.history[0].delete();
     _textures.history[1].delete();
     _textures.oscCounts.forEach(oscCounts => oscCounts.forEach(oscCount => oscCount.delete()));
+    _textures.minOscCount.delete();
     _textures.cellColors.delete();
+    _textures.p0Colors.delete();
   }
 
   const entropy = generateRandomState(_stateWidth, _stateHeight);
@@ -573,9 +582,17 @@ async function init(reInit = false) {
     magFilter: PicoGL.NEAREST
   });
 
+  _textures.p0Colors = _app.createTexture2D(_stateWidth, _stateHeight, {
+    minFilter: PicoGL.NEAREST,
+    magFilter: PicoGL.NEAREST
+  });
+
   _drawCalls.golStep = _app.createDrawCall(_programs.golStep, _vao);
   _drawCalls.screenColors = _app.createDrawCall(_programs.screenColors, _vao)
     .texture('u_cell_colors', _textures.cellColors)
+    .uniform('cell_size', _cellSize);
+  _drawCalls.p0Colors = _app.createDrawCall(_programs.screenColors, _vao)
+    .texture('u_cell_colors', _textures.p0Colors)
     .uniform('cell_size', _cellSize);
   _drawCalls.screenAlive = _app.createDrawCall(_programs.screenAlive, _vao)
     .uniform('cell_size', _cellSize);
