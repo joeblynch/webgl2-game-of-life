@@ -7,7 +7,7 @@ const MAX_ENTROPY = 65536;
 const CELL_STATE_BYTES = 4;
 const CELL_OSC_COUNT_BYTES = 4;
 
-const TEXTURE_MODES = ['colors', 'alive', 'active', 'oscCount', 'minOscCount', 'state', 'hue', 'p0Colors'];
+const TEXTURE_MODES = ['colors', 'alive', 'active', 'oscCount', 'minOscCount', 'state', 'hue'];
 const TEXTURE_DESC = [
   '', // color composite
   'alive bit',
@@ -15,8 +15,7 @@ const TEXTURE_DESC = [
   'oscillator counters (r: P2, g: P3, b: P4)',
   'labeled oscillator counters',
   'raw state (r: alive, gb: xy hue vector)',
-  'hue state',
-  'P0 (non-oscillating) alive cell colors'
+  'hue state'
 ];
 
 function parseHash() {
@@ -69,15 +68,17 @@ let _saturation_off = typeof options.satOff === 'number' ? options.satOff : 0.4;
 let _lightness_on = typeof options.liOn === 'number' ? options.liOn : 0.76;
 let _lightness_off = typeof options.liOff === 'number' ? options.liOff : 0.045;
 let _textureMode = options.texture >= 0 && options.texture < TEXTURE_MODES.length ? options.texture : 0;
-let _oscCounts_1;
-let _oscCounts32_1;
-let _oscCounts_2;
-let _oscCounts32_2;
+let _activeCounts;
 let _offscreen;
 let _quad;
 let _vao;
 let _stateWidth;
 let _stateHeight;
+let _canvasWidth;
+let _canvasHeight;
+let _activeWidth;
+let _activeHeight;
+let _activeFramebuffer;
 let _generation = START_GENERATION;
 let _maxGenerations = -1;
 let _entropy;
@@ -312,7 +313,6 @@ function step() {
   _offscreen.colorTarget(3, _textures.cellColors);
   _offscreen.colorTarget(4, _textures.oscCounts[1][frontIndex]);
   _offscreen.colorTarget(5, _textures.minOscCount);
-  _offscreen.colorTarget(6, _textures.p0Colors);
   _app.drawFramebuffer(_offscreen);
 
   // TODO: probably a lot more performant to use an uniform buffer object
@@ -326,6 +326,8 @@ function step() {
   _drawCalls.golStep.texture('u_entropy', _textures.entropy);
   _drawCalls.golStep.texture('u_osc_count_1', _textures.oscCounts[0][backIndex]);
   _drawCalls.golStep.texture('u_osc_count_2', _textures.oscCounts[1][backIndex]);
+
+  _app.gl.viewport(0, 0, _stateWidth, _stateHeight);
   _drawCalls.golStep.draw();
 
   _generation++;
@@ -334,14 +336,13 @@ function step() {
 function draw() {
   const frontIndex = (_generation + (_generation < 0 ? 2 : 0)) % 2;
 
+  _app.gl.viewport(0, 0, _canvasWidth, _canvasHeight);
+
   _app.defaultDrawFramebuffer();
 
   switch (TEXTURE_MODES[_textureMode]) {
     case 'colors':
       _drawCalls.screenColors.draw();
-      break;
-    case 'p0Colors':
-      _drawCalls.p0Colors.draw();
       break;
     case 'alive':
       _drawCalls.screenAlive.texture('u_state', _textures.state[frontIndex]);
@@ -392,40 +393,33 @@ function reset() {
 function getActiveCells() {
   const { PicoGL } = window;
   const { gl } = _app;
-  const { framebuffer } = _offscreen;
   let active = 0;
 
+  gl.viewport(0, 0, _activeWidth, _activeHeight);
+
+  const frontIndex = (_generation + (_generation < 0 ? 2 : 0)) % 2;
+  _app.drawFramebuffer(_activeFramebuffer);
+
+  _drawCalls.countActive.texture('u_state', _textures.state[frontIndex]);
+  _drawCalls.countActive.draw();
+  
+  // read the active counts back from the GPU
+  const { framebuffer } = _activeFramebuffer;
+
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, framebuffer);
-  gl.readBuffer(gl.COLOR_ATTACHMENT2);
+  gl.readBuffer(gl.COLOR_ATTACHMENT0);
+
   // FIXME: this fails in firefox on mac for some reason, with `readPixels: Incompatible format or type.`
-  gl.readPixels(0, 0, _stateWidth, _stateHeight, PicoGL.RGBA_INTEGER, PicoGL.UNSIGNED_BYTE, _oscCounts_1);
+  // const start = performance.now();
+  gl.readPixels(0, 0, _activeWidth, _activeHeight, PicoGL.RED_INTEGER, PicoGL.UNSIGNED_BYTE, _activeCounts);
+  // console.log(performance.now() - start);
 
-  gl.readBuffer(gl.COLOR_ATTACHMENT4);
-  gl.readPixels(0, 0, _stateWidth, _stateHeight, PicoGL.RGBA_INTEGER, PicoGL.UNSIGNED_BYTE, _oscCounts_2);
+  // manually clear the read framebuffer, otherwise chrome flashes between the last 3 states after resizing
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
 
-  // _oscCounts32 is a uint32 view of the uint8 _oscCounts buffer, quicker to search through
-  for (let i = 0, l = _oscCounts32_1.length; i < l; i++) {
-    if (_oscCounts32_1[i] === 0 && _oscCounts32_2[i] === 0) {
-      active++;
-    }
-  }
-
-  if (!active) {
-    // no cells are active, but lets give everything a chance to fade out for a bit
-    const MIN_FADE_ACTIVE_COUNT = 36;
-    active = 0;
-    for (let i = 0, l = _oscCounts_1.length; i < l; i += 4) {
-      if (
-        _oscCounts_1[i] < MIN_FADE_ACTIVE_COUNT &&
-        _oscCounts_1[i + 1] < MIN_FADE_ACTIVE_COUNT &&
-        _oscCounts_1[i + 2] < MIN_FADE_ACTIVE_COUNT &&
-        _oscCounts_1[i + 3] < MIN_FADE_ACTIVE_COUNT &&
-        _oscCounts_2[i] < MIN_FADE_ACTIVE_COUNT &&
-        _oscCounts_2[i + 1] < MIN_FADE_ACTIVE_COUNT
-      ) {
-        active++;
-      }
-    }
+  // sum the active blocks
+  for (let i = 0, l = _activeCounts.length; i < l; i++) {
+    active += _activeCounts[i];
   }
 
   return active;
@@ -451,7 +445,9 @@ async function init(reInit = false) {
     canvasEl.width = width;
     canvasEl.height = height;
     canvasEl.style.width = `${displayWidth}px`;
-    canvasEl.style.height = `${displayHeight}pzx`;
+    canvasEl.style.height = `${displayHeight}px`;
+    _canvasWidth = width;
+    _canvasHeight = height;
 
     _textureDescEl.innerText = TEXTURE_DESC[_textureMode];
 
@@ -479,7 +475,8 @@ async function init(reInit = false) {
       screenHue,
       screenOscCount,
       screenMinOscCount,
-      screenActive
+      screenActive,
+      countActive
     ] = await Promise.all(
       [
         'gol-step',
@@ -489,7 +486,8 @@ async function init(reInit = false) {
         'screen-hue',
         'screen-osc-count',
         'screen-min-osc-count',
-        'screen-active'
+        'screen-active',
+        'count-active'
       ].map(
         async shader => _app.createProgram(quadVertShader, await loadShaderSource(`${shader}.frag`))
       )
@@ -503,7 +501,8 @@ async function init(reInit = false) {
       screenHue,
       screenOscCount,
       screenMinOscCount,
-      screenActive
+      screenActive,
+      countActive
     });
   }
 
@@ -515,7 +514,7 @@ async function init(reInit = false) {
     _textures.oscCounts.forEach(oscCounts => oscCounts.forEach(oscCount => oscCount.delete()));
     _textures.minOscCount.delete();
     _textures.cellColors.delete();
-    _textures.p0Colors.delete();
+    _textures.activeCounts.delete();
   }
 
   const entropy = generateRandomState(_stateWidth, _stateHeight);
@@ -572,27 +571,27 @@ async function init(reInit = false) {
     magFilter: PicoGL.NEAREST
   });
 
-  _oscCounts_1 = new Uint8Array(_stateWidth * _stateHeight * 4);
-  _oscCounts32_1 = new Uint32Array(_oscCounts_1.buffer)
-  _oscCounts_2 = new Uint8Array(_stateWidth * _stateHeight * 4);
-  _oscCounts32_2 = new Uint32Array(_oscCounts_2.buffer)
-
   _textures.cellColors = _app.createTexture2D(_stateWidth, _stateHeight, {
     minFilter: PicoGL.NEAREST,
     magFilter: PicoGL.NEAREST
   });
 
-  _textures.p0Colors = _app.createTexture2D(_stateWidth, _stateHeight, {
-    minFilter: PicoGL.NEAREST,
-    magFilter: PicoGL.NEAREST
+  _activeWidth = Math.ceil(_stateWidth / 16);
+  _activeHeight = Math.ceil(_stateHeight / 16);
+
+  const nearestPOTWidth = Math.pow(2, Math.ceil(Math.log2(_activeWidth)));
+  const nearestPOTHeight = Math.pow(2, Math.ceil(Math.log2(_activeHeight)));
+  _activeCounts = new Uint8Array(nearestPOTWidth * nearestPOTHeight);
+
+  _textures.activeCounts = _app.createTexture2D(_activeWidth, _activeHeight, {
+    internalFormat: PicoGL.R8UI,
+    format: PicoGL.RED_INTEGER,
+    type: PicoGL.UNSIGNED_INT
   });
 
   _drawCalls.golStep = _app.createDrawCall(_programs.golStep, _vao);
   _drawCalls.screenColors = _app.createDrawCall(_programs.screenColors, _vao)
     .texture('u_cell_colors', _textures.cellColors)
-    .uniform('cell_size', _cellSize);
-  _drawCalls.p0Colors = _app.createDrawCall(_programs.screenColors, _vao)
-    .texture('u_cell_colors', _textures.p0Colors)
     .uniform('cell_size', _cellSize);
   _drawCalls.screenAlive = _app.createDrawCall(_programs.screenAlive, _vao)
     .uniform('cell_size', _cellSize);
@@ -608,9 +607,14 @@ async function init(reInit = false) {
   _drawCalls.screenActive = _app.createDrawCall(_programs.screenActive, _vao)
     .texture('u_min_osc_count', _textures.minOscCount)
     .uniform('cell_size', _cellSize);
+  _drawCalls.countActive = _app.createDrawCall(_programs.countActive, _vao)
+    .texture('u_min_osc_count', _textures.minOscCount);
 
   if (!reInit) {
     _offscreen = _app.createFramebuffer();
+    _activeFramebuffer = _app.createFramebuffer().colorTarget(0, _textures.activeCounts);
+  } else {
+    _activeFramebuffer.colorTarget(0, _textures.activeCounts);
   }
 }
 

@@ -34,7 +34,6 @@ layout(location=2) out uvec4 osc_count_out_1;
 layout(location=3) out vec4 cell_color_out;
 layout(location=4) out uvec4 osc_count_out_2;
 layout(location=5) out uvec2 min_osc_count;
-layout(location=6) out vec4 p0_color_out;
 
 // set a lower bound on the number of oscillation repetitions, before a cell is has its saturation and lightness
 // modified. this prevents short bursts of random oscillations from being highlighted or dimmed
@@ -136,8 +135,6 @@ void main() {
   uvec4 next_osc_count_1;
   uvec4 next_osc_count_2;
   uvec2 next_min_osc_count;
-  vec4 next_cell_color;
-  vec4 next_p0_color = vec4(0.0, 0.0, 0.0, 1.0);
   float saturation, lightness;
   ivec2 hue_vec;
   float hue_shift = 0.0;
@@ -342,20 +339,13 @@ void main() {
   }
   float hue = hue_deg * INV_360;
 
-  next_cell_color = vec4(hsl2rgb(hue, saturation, lightness), 1.0);
-
-  if (min_p == uint(0) && next_cell.r == 1) {
-    next_p0_color = next_cell_color;
-  }
-
   // copy outputs
-  cell_color_out = next_cell_color;
+  cell_color_out = vec4(hsl2rgb(hue, saturation, lightness), 1.0);
   cell_out = next_cell;
   history_out = next_history;
   osc_count_out_1 = next_osc_count_1;
   osc_count_out_2 = next_osc_count_2;
   min_osc_count = next_min_osc_count;
-  p0_color_out = next_p0_color;
 }
 
 // hsl convert functions from here: https://github.com/Jam3/glsl-hsl2rgb/blob/master/index.glsl
