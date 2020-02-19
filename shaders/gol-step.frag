@@ -138,8 +138,6 @@ void main() {
   float saturation, lightness;
   ivec2 hue_vec;
   float hue_shift = 0.0;
-  uint max_len = uint(0);
-  uint min_p = uint(0);
 
   // lookup this cell's state as of the last generation
   ivec4 last_cell = texelFetch(u_state, coord, 0);
@@ -201,6 +199,9 @@ void main() {
     next_osc_count_2[0] = getOscCount(next_history.r, OSCILLATOR_PERIODS[4], last_osc_count_2[0]);
 
     // find min oscillator period, since a P2 is also P4, a P1 also P2, P3, etc.
+    uint max_len = uint(0);
+    uint min_p = uint(0);
+
     for (uint i = uint(0); i < uint(5); i++) {
       uint len = i < uint(4) ? next_osc_count_1[i] : next_osc_count_2[i - uint(4)];
       if (len > max_len && len >= MIN_OSC_LEN) {
