@@ -410,9 +410,10 @@ function getActiveCells() {
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, framebuffer);
   gl.readBuffer(gl.COLOR_ATTACHMENT0);
 
-  // FIXME: this fails in firefox on mac for some reason, with `readPixels: Incompatible format or type.`
+  // TODO: for some reason, firefox on mac only supports RGBA_INTEGER/UNSIGNED_INT (min spec), instead of
+  //       RED_INTEGER/UNSIGNED_BYTE, so this read transfers 16x more data than is actually needed
   // const start = performance.now();
-  gl.readPixels(0, 0, _activeWidth, _activeHeight, PicoGL.RED_INTEGER, PicoGL.UNSIGNED_BYTE, _activeCounts);
+  gl.readPixels(0, 0, _activeWidth, _activeHeight, PicoGL.RGBA_INTEGER, PicoGL.UNSIGNED_INT, _activeCounts);
   // console.log(performance.now() - start);
 
   // manually clear the read framebuffer, otherwise chrome flashes between the last 3 states after resizing
@@ -580,13 +581,11 @@ async function init(reInit = false) {
   _activeWidth = Math.ceil(_stateWidth / 16);
   _activeHeight = Math.ceil(_stateHeight / 16);
 
-  const nearestPOTWidth = Math.pow(2, Math.ceil(Math.log2(_activeWidth)));
-  const nearestPOTHeight = Math.pow(2, Math.ceil(Math.log2(_activeHeight)));
-  _activeCounts = new Uint8Array(nearestPOTWidth * nearestPOTHeight);
+  _activeCounts = new Uint32Array(_activeWidth * _activeHeight * 4);
 
   _textures.activeCounts = _app.createTexture2D(_activeWidth, _activeHeight, {
-    internalFormat: PicoGL.R8UI,
-    format: PicoGL.RED_INTEGER,
+    internalFormat: PicoGL.RGBA8UI,
+    format: PicoGL.RGBA_INTEGER,
     type: PicoGL.UNSIGNED_INT
   });
 
