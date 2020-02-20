@@ -7,11 +7,12 @@ const MAX_ENTROPY = 65536;
 const CELL_STATE_BYTES = 4;
 const CELL_OSC_COUNT_BYTES = 4;
 
-const TEXTURE_MODES = ['colors', 'alive', 'active', 'oscCount', 'minOscCount', 'state', 'hue'];
+const TEXTURE_MODES = ['colors', 'alive', 'active', 'activeCounts', 'oscCount', 'minOscCount', 'state', 'hue'];
 const TEXTURE_DESC = [
   '', // color composite
   'alive bit',
   'P0 (non-oscillating) alive cells',
+  'P0 (non-oscillating) alive cells with block counts',
   'oscillator counters (r: P2, g: P3, b: P4)',
   'labeled oscillator counters',
   'raw state (r: alive, gb: xy hue vector)',
@@ -233,13 +234,14 @@ document.addEventListener('keydown', (e) => {
       updateHash();
       e.preventDefault();
       break;
-    case 49:  // 1-7
+    case 49:  // 1-8
     case 50:
     case 51:
     case 52:
     case 53:
     case 54:
     case 55:
+    case 56:
       _textureMode = e.which - 49;
       _textureDescEl.innerText = TEXTURE_DESC[_textureMode];
       draw();
@@ -337,6 +339,10 @@ function step() {
 function draw() {
   const frontIndex = (_generation + (_generation < 0 ? 2 : 0)) % 2;
 
+  if (TEXTURE_MODES[_textureMode] === 'activeCounts') {
+    countActiveCells();
+  }
+
   _app.gl.viewport(0, 0, _canvasWidth, _canvasHeight);
 
   _app.defaultDrawFramebuffer();
@@ -368,6 +374,10 @@ function draw() {
       _drawCalls.screenActive.texture('u_state', _textures.state[frontIndex]);
       _drawCalls.screenActive.draw();
       break;
+    case 'activeCounts':
+      _drawCalls.screenActiveCounts.texture('u_state', _textures.state[frontIndex]);
+      _drawCalls.screenActiveCounts.draw();
+      break;
   }
 }
 
@@ -391,10 +401,8 @@ function reset() {
   // _textures.oscCount[0].data(new Uint8Array(_stateHeight * _stateWidth * CELL_OSC_COUNT_BYTES));
 }
 
-function getActiveCells() {
-  const { PicoGL } = window;
+function countActiveCells() {
   const { gl } = _app;
-  let active = 0;
 
   gl.viewport(0, 0, _activeWidth, _activeHeight);
 
@@ -403,6 +411,14 @@ function getActiveCells() {
 
   _drawCalls.countActive.texture('u_state', _textures.state[frontIndex]);
   _drawCalls.countActive.draw();
+}
+
+function getActiveCells() {
+  const { PicoGL } = window;
+  const { gl } = _app;
+  let active = 0;
+
+  countActiveCells();
   
   // read the active counts back from the GPU
   const { framebuffer } = _activeFramebuffer;
@@ -607,6 +623,13 @@ async function init(reInit = false) {
     .uniform('cell_size', _cellSize);
   _drawCalls.screenActive = _app.createDrawCall(_programs.screenActive, _vao)
     .texture('u_min_osc_count', _textures.minOscCount)
+    .texture('u_active_counts', _textures.activeCounts)
+    .uniform('u_show_active_counts', 0)
+    .uniform('cell_size', _cellSize);
+  _drawCalls.screenActiveCounts = _app.createDrawCall(_programs.screenActive, _vao)
+    .texture('u_min_osc_count', _textures.minOscCount)
+    .texture('u_active_counts', _textures.activeCounts)
+    .uniform('u_show_active_counts', 1)
     .uniform('cell_size', _cellSize);
   _drawCalls.countActive = _app.createDrawCall(_programs.countActive, _vao)
     .texture('u_min_osc_count', _textures.minOscCount);
