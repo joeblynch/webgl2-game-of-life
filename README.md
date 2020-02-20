@@ -160,8 +160,6 @@ The renderer is currently configured to draw a cubic ease out across the last 64
 active lifeforms, and a fading trail behind spaceships.
 
 #### End of the universe detection
-_FIXME: this does not work in firefox on mac, for some reason it fails to read the oscillator count textures._
-
 For an infinitely expanding GoL universe, there is no end to the game. Each tick additional entropy is injected, so
 equilibrium is never reached. However, each tick requires acquiring an increasing amount of entropy, at a rate of
 `bits_per_cell * 8 * (generation + 1)`. Generation -2 is an exception, in that only `bits_per_cell` bits of entropy are
