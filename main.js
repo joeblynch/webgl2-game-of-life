@@ -56,6 +56,8 @@ function updateHash() {
 // NOTE: seed entropy saved before 2019/11/08 uses a start generation of -1
 const START_GENERATION = -2;
 
+const FADE_OUT_GENERATION_COUNT = 20;
+
 let _app;
 const _programs = {};
 const _drawCalls = {};
@@ -84,6 +86,7 @@ let _generation = START_GENERATION;
 let _maxGenerations = -1;
 let _entropy;
 let _running = true;
+let _endedGeneration = -1;
 let _lastFPSUpdate = 0;
 let _lastActiveUpdate = 0;
 let _fps = 0;
@@ -134,7 +137,7 @@ const ADJ_STEP = 0.005;
       _fps = 0;
     }
 
-    if (now - 250 >= _lastActiveUpdate) {
+    if (now - 250 >= _lastActiveUpdate && _generation > 0 && _endedGeneration < 0) {
       const active = getActiveCells();
       _activeEl.innerText = active;
       if (!active) {
@@ -142,9 +145,15 @@ const ADJ_STEP = 0.005;
           _maxGenerations = _generation;
           console.log('max generations: ', _generation, _entropy);
         }
-        reset();
+
+        _endedGeneration = _generation - 1;
       }
+
       _lastActiveUpdate = now;
+    }
+
+    if (_endedGeneration > 0 && _generation >= _endedGeneration + FADE_OUT_GENERATION_COUNT) {
+      reset();
     }
   });
 })();
@@ -257,6 +266,7 @@ document.addEventListener('keydown', (e) => {
         reset();
       } else {
         _generation = START_GENERATION;
+        _endedGeneration = -1;
       }
       break;
     case 84:  // t
@@ -349,6 +359,17 @@ function draw() {
 
   switch (TEXTURE_MODES[_textureMode]) {
     case 'colors':
+      let brightness;
+
+      if (_endedGeneration >= 0) {
+        // universe has ended, fade out
+        brightness = 1 - (_generation - _endedGeneration) / FADE_OUT_GENERATION_COUNT;
+      } else {
+        // universe hasn't ended, full brightness
+        brightness = 1;
+      }
+
+      _drawCalls.screenColors.uniform('u_brightness', brightness);
       _drawCalls.screenColors.draw();
       break;
     case 'alive':
@@ -383,6 +404,7 @@ function draw() {
 
 function reset() {
   _generation = START_GENERATION;
+  _endedGeneration = -1;
 
   _entropy = generateRandomState(_stateWidth, _stateHeight);
 
