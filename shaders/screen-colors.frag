@@ -5,7 +5,6 @@ precision mediump sampler2D;
 
 uniform sampler2D u_cell_colors;
 uniform int cell_size;
-uniform float u_brightness;
 
 layout(location=0) out vec4 frag_color;
 
@@ -17,6 +16,6 @@ void main() {
   } else {
     vec4 cell = texelFetch(u_cell_colors, coord / cell_size, 0);
     // frag_color = vec4(float(cell.r), vec2(cell.gb + 127) / 255.0, 1.0);
-    frag_color = vec4(cell.rgb * u_brightness, 1.0);
+    frag_color = vec4(cell.rgb, 1.0);
   }
 }

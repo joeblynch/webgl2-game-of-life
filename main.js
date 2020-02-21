@@ -320,6 +320,18 @@ function step() {
   const backIndex = (_generation + (_generation < 0 ? 2 : 0)) % 2;
   const frontIndex = (backIndex + 1) % 2;
 
+  let existence;
+  if (_endedGeneration >= 0) {
+    // universe has ended, fade out with cubic ease out
+    const pct = (_generation - _endedGeneration) / FADE_OUT_GENERATION_COUNT;
+    const t = pct - 1;
+
+    existence = 1 - (t * t * t + 1);
+  } else {
+    // universe hasn't ended, full brightness
+    existence = 1;
+  }
+
   _offscreen.colorTarget(0, _textures.state[frontIndex]);
   _offscreen.colorTarget(1, _textures.history[frontIndex]);
   _offscreen.colorTarget(2, _textures.oscCounts[0][frontIndex]);
@@ -334,6 +346,7 @@ function step() {
   _drawCalls.golStep.uniform('u_saturation_off', _saturation_off);
   _drawCalls.golStep.uniform('u_lightness_on', _lightness_on);
   _drawCalls.golStep.uniform('u_lightness_off', _lightness_off);
+  _drawCalls.golStep.uniform('u_existence', existence);
   _drawCalls.golStep.texture('u_state', _textures.state[backIndex]);
   _drawCalls.golStep.texture('u_history', _textures.history[backIndex]);
   _drawCalls.golStep.texture('u_entropy', _textures.entropy);
@@ -359,20 +372,6 @@ function draw() {
 
   switch (TEXTURE_MODES[_textureMode]) {
     case 'colors':
-      let brightness;
-
-      if (_endedGeneration >= 0) {
-        // universe has ended, fade out with cubic ease out
-        const pct = (_generation - _endedGeneration) / FADE_OUT_GENERATION_COUNT;
-        const t = pct - 1;
-
-        brightness = 1 - (t * t * t + 1);
-      } else {
-        // universe hasn't ended, full brightness
-        brightness = 1;
-      }
-
-      _drawCalls.screenColors.uniform('u_brightness', brightness);
       _drawCalls.screenColors.draw();
       break;
     case 'alive':

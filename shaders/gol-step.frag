@@ -13,6 +13,9 @@ uniform float u_saturation_off;
 uniform float u_lightness_on;
 uniform float u_lightness_off;
 
+// after the universe ends, it fades out to black. this multiplier is used to reduce cell saturation and lightness
+uniform float u_existence;
+
 // the universe state, each texture pixel is a cell. red: on/off state bit, green/blue: x/y vector of cell's hue angle
 uniform isampler2D u_state;
 
@@ -341,7 +344,7 @@ void main() {
   float hue = hue_deg * INV_360;
 
   // copy outputs
-  cell_color_out = vec4(hsl2rgb(hue, saturation, lightness), 1.0);
+  cell_color_out = vec4(hsl2rgb(hue, saturation * u_existence, lightness * u_existence), 1.0);
   cell_out = next_cell;
   history_out = next_history;
   osc_count_out_1 = next_osc_count_1;
