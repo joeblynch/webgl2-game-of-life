@@ -56,7 +56,7 @@ function updateHash() {
 // NOTE: seed entropy saved before 2019/11/08 uses a start generation of -1
 const START_GENERATION = -2;
 
-const FADE_OUT_GENERATION_COUNT = 20;
+const FADE_OUT_GENERATION_COUNT = 30;
 
 let _app;
 const _programs = {};
@@ -362,8 +362,11 @@ function draw() {
       let brightness;
 
       if (_endedGeneration >= 0) {
-        // universe has ended, fade out
-        brightness = 1 - (_generation - _endedGeneration) / FADE_OUT_GENERATION_COUNT;
+        // universe has ended, fade out with cubic ease out
+        const pct = (_generation - _endedGeneration) / FADE_OUT_GENERATION_COUNT;
+        const t = pct - 1;
+
+        brightness = 1 - (t * t * t + 1);
       } else {
         // universe hasn't ended, full brightness
         brightness = 1;
