@@ -233,7 +233,7 @@ void main() {
     float lightness_scale = LIGHTNESS_ON_SCALE * u_lightness_on;
 
     if (next_cell.r == 1) {
-      // cell as alive
+      // cell is alive
       if ((last_history.r & uint(1)) == uint(0)) {
         // cell is newly on, so it inherits its color from its three parents
         // calculate new hue vector by summing hue vectors of alive neighbors
