@@ -48,7 +48,7 @@ of neighbors. This gives the single universe point in generation 0 a full set of
 But what determines the initial state of the cells in the horizon? If their initial state is null, the universe will 
 consist only of dead cells. To make the GoL universe interesting, each cell starts with a random state. (See:
 [soup](https://www.conwaylife.com/wiki/Soup)) Because the cells in the event horizon need to already have their state
-set for the cells at the inside edge of the universe to determining their next state, the initial cell state needs to be
+set for the cells at the inside edge of the universe to determine their next state, the initial cell state needs to be
 set at least one generation before the cell is part of the event horizon. Entropy is pushed/pulled into the outer edge
 of the universe, one cell beyond the horizon.
 
