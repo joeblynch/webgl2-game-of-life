@@ -62,15 +62,15 @@ let _app;
 const _programs = {};
 const _drawCalls = {};
 const _textures = {};
-const options = parseHash();
-let _cellAliveProbability = options.alive >= 0 && options.alive <= 1 ? options.alive : 0.5;
-let _cellSize = options.size || DEFAULT_CELL_SIZE;
-let _speed = typeof options.speed === 'number' ? options.speed : -5;
-let _saturation_on = typeof options.satOn === 'number' ? options.satOn : 0.98;
-let _saturation_off = typeof options.satOff === 'number' ? options.satOff : 0.4;
-let _lightness_on = typeof options.liOn === 'number' ? options.liOn : 0.76;
-let _lightness_off = typeof options.liOff === 'number' ? options.liOff : 0.045;
-let _textureMode = options.texture >= 0 && options.texture < TEXTURE_MODES.length ? options.texture : 0;
+const _options = parseHash();
+let _cellAliveProbability = _options.alive >= 0 && _options.alive <= 1 ? _options.alive : 0.5;
+let _cellSize = _options.size || DEFAULT_CELL_SIZE;
+let _speed = typeof _options.speed === 'number' ? _options.speed : -5;
+let _saturation_on = typeof _options.satOn === 'number' ? _options.satOn : 0.98;
+let _saturation_off = typeof _options.satOff === 'number' ? _options.satOff : 0.4;
+let _lightness_on = typeof _options.liOn === 'number' ? _options.liOn : 0.76;
+let _lightness_off = typeof _options.liOff === 'number' ? _options.liOff : 0.045;
+let _textureMode = _options.texture >= 0 && _options.texture < TEXTURE_MODES.length ? _options.texture : 0;
 let _activeCounts;
 let _offscreen;
 let _quad;
@@ -301,6 +301,18 @@ document.addEventListener('keydown', (e) => {
         toggleHelp();
       }
       break;
+    case 188:
+      _options.width = _options.height = _options.height - 1;
+      console.log(_options.width);
+      init(true);
+      reset();
+      break;
+    case 190:
+      _options.width = _options.height = _options.height + 1;
+      console.log(_options.width);
+      init(true);
+      reset();
+      break;
     default:
       console.log(e.which);
   }
@@ -479,6 +491,14 @@ async function init(reInit = false) {
   const height = displayHeight * window.devicePixelRatio;
   _stateWidth = Math.floor(width / _cellSize);
   _stateHeight = Math.floor(height / _cellSize);
+
+  // JBL TESTING
+  _stateWidth = _options.width || _stateWidth;
+  _stateHeight = _options.height || _stateHeight;
+
+  const vertCellSize = Math.floor(height / _stateHeight);
+  const horizCellSize = Math.floor(width / _stateWidth);
+  _cellSize = Math.min(vertCellSize, horizCellSize);
 
   console.log(width, height, _stateWidth, _stateHeight);
 
