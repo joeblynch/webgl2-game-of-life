@@ -16,6 +16,6 @@ void main() {
   } else {
     vec4 cell = texelFetch(u_cell_colors, coord / cell_size, 0);
     // frag_color = vec4(float(cell.r), vec2(cell.gb + 127) / 255.0, 1.0);
-    frag_color = cell;
+    frag_color = vec4(cell.rgb, 1.0);
   }
 }

@@ -1,10 +1,31 @@
 WebGL2 Conway's Game of Life
 ============================
 
-This is my take on Conway's Game of Life. The main additional features were originally written in JS 12/2018-01/2019,
-converted to WebGL shortly after, and then to WebGL2 to allow for multiple outputs from the main shader.
+This is my take on [Conway's Game of Life](https://www.conwaylife.com/wiki/Conway%27s_Game_of_Life). If you'd like to
+jump into the code, all the interesting stuff happens in [this shader](./shaders/gol-step.frag).
 
-If you'd like to jump into the code, all the interesting stuff happens in [this shader](./shaders/gol-step.frag).
+## Controls
+```
+[double click] or [f]     toggle fullscreen (recommended)
+[space]                   pause / resume
+[down]                    decrease speed
+[up]                      increase speed
+[left]                    decrease dead cell brightness
+[right]                   increase dead cell brightness
+[shift]+[left]            decrease dead cell saturation
+[shift]+[right]           increase dead cell saturation
+[ctrl]+[left]             decrease alive cell brightness
+[ctrl]+[right]            increase alive cell brightness
+[ctrl]+[shift]+[left]     decrease alive cell saturation
+[shift]+[shift]+[right]   increase alive cell saturation
+[shift]+[-]               decrease cell size (reset universe)
+[shift]+[+]               increase cell size (reset universe)
+[h] or [?]                toggle help
+[r]                       restart universe (same entropy)
+[shift]+[r]               reset universe (new entropy)
+[t]                       toggle rendered texture
+[u]                       toggle UI
+```
 
 ## Additional Features
 
@@ -27,7 +48,7 @@ of neighbors. This gives the single universe point in generation 0 a full set of
 But what determines the initial state of the cells in the horizon? If their initial state is null, the universe will 
 consist only of dead cells. To make the GoL universe interesting, each cell starts with a random state. (See:
 [soup](https://www.conwaylife.com/wiki/Soup)) Because the cells in the event horizon need to already have their state
-set for the cells at the inside edge of the universe to determining their next state, the initial cell state needs to be
+set for the cells at the inside edge of the universe to determine their next state, the initial cell state needs to be
 set at least one generation before the cell is part of the event horizon. Entropy is pushed/pulled into the outer edge
 of the universe, one cell beyond the horizon.
 
@@ -99,7 +120,10 @@ tracked, an `R32UI` texture format is used for the history textures.
 #### Oscillation counters
 The lightness and saturation of a cell is altered for oscillators, depending on their period. P1 (steady state), and
 P2 (most frequently blinkers), are dimmed because they are so common. Other oscillators are highlighted for their 
-rarity. I also tried rotating the hue of these oscillators, however this isn't working correctly as implemented.
+rarity. I also tried rotating the hue of these oscillators, however this is only working correctly as implemented for
+P15 oscillators (and likely other high P), for some reason.
+
+![hue rotating P15 (pentadecathlon)](pentadecathlon-short.gif)
 
 An oscillator also oscillates at all multiples of its period. So for example, a P2 is also a P4, P6, etc, and
 a P1 oscillates at all periods up to 1/2 its lifespan.
@@ -130,6 +154,11 @@ const float SATURATION[4] = float[4](
 );
 ```
 
+#### Fade out dead cells
+Using the P1 counter for dead cells, the duration since the cell was last alive is tracked for the last 255 generations.
+The renderer is currently configured to draw a cubic ease out across the last 64 generations, creating a glow around
+active lifeforms, and a fading trail behind spaceships.
+
 #### End of the universe detection
 For an infinitely expanding GoL universe, there is no end to the game. Each tick additional entropy is injected, so
 equilibrium is never reached. However, each tick requires acquiring an increasing amount of entropy, at a rate of
@@ -138,6 +167,18 @@ needed to tick. Another option would be to start at generation -1, in which the 
 where time does not yet tick.
 
 Eventually every finite sized GoL universe minimizes its entropy (the opposite of our universe, presumably because cells
-are destroyed when 1/2 or greater of their neighbors exist, so that eventually only stable ordered structures and dead exists), and reaches a steady state in which all alive cells are oscillators. After this point, nothing new will happen,
-and continuing the simulation is no longer interesting. Once it's detected that every cell is either dead or an
+are destroyed when 1/2 or greater of their neighbors exist, so that eventually only stable ordered structures and dead
+cells exist), and reaches a steady state in which all alive cells are oscillators. After this point, nothing new will
+happen, and continuing the game is no longer interesting. Once it's detected that every cell is either dead or an
 oscillator, the game is ended, and a new one begins.
+
+Currently only oscillators with periods of 1, 2, 3, 4, and 15 are counted for end of the universe detection. Other
+oscillator periods are allowed to continue running, for their rarity.
+
+## History
+```
+2018/12 - 2019/01: original implementation in JS
+2019/01 - 2019/03: WebGL implementation
+2019/03 - 2019/07: WebGL2 implementation, to allow for multiple shader outputs and integer textures
+2019/07 - 2020/02: occasional tweaks, cleanup for GitHub arctic code vault
+```

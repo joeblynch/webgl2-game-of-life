@@ -11,6 +11,11 @@
       body {
         background-color: #000;
         overflow: hidden;
+        font-family: Consolas, Menlo, monospace;
+      }
+
+      body.hide-ui {
+        cursor: none;
       }
 
       #no-webgl2 {
@@ -24,7 +29,6 @@
         align-items: center;
         justify-content: center;
         flex-direction: column;
-        font-family: sans-serif;
         animation-name: error-fade;
         animation-duration: 6s;
       }
@@ -47,13 +51,20 @@
         position: absolute;
       }
 
-      #fps, #gen, #active, #toggle-help {
+      #fps, #gen, #active, #toggle-help, #texture-desc {
         position: absolute;
         bottom: 10px;
         color: #af0;
-        font-family: 'Menlo', monospace;
         font-size: 12px;
         background-color: rgba(0, 0, 0, 0.75)
+      }
+
+      .hide-ui #fps, .hide-ui #gen, .hide-ui #active, .hide-ui #toggle-help, .hide-ui #texture-desc {
+        display: none;
+      }
+
+      #texture-desc {
+        left: 50px;
       }
 
       #fps {
@@ -80,11 +91,10 @@
         left: 0;
         right: 0;
         bottom: 0;
-        color: #fff;
         align-items: center;
-        font-family: monospace;
         justify-content: center;
         background-color: rgba(0,0,0,0.4);
+        cursor: default;
       }
 
       #help-container.hidden {
@@ -93,12 +103,15 @@
 
       #help {
         background-color: rgba(0,0,0,0.6);
-        border: 1px solid white;
+        border: 1px solid rgb(255, 255, 255, 0.94);
         padding: 16px;
+        color: rgb(255, 255, 255, 0.94);
+        font-size: 10pt;
       }
 
       #help h1 {
         margin-top: 0;
+        font-weight: 100;
       }
 
       #help a {
@@ -118,10 +131,11 @@
       <h4>try using Firefox or Chrome on a desktop or laptop</h4>
     </div>
     <canvas id="c"></canvas>
+    <div id="toggle-help" onclick="toggleHelp()">[?]</div>
+    <div id="texture-desc"></div>
     <div id="fps"></div>
     <div id="gen"></div>
     <div id="active"></div>
-    <div id="toggle-help" onclick="toggleHelp()">[?]</div>
     <div id="help-container" class="hidden" onclick="toggleHelp()">
       <div id="help">
         <h1> WebGL2 Conway's Game of Life</h1>
@@ -130,6 +144,10 @@
 
         <table>
           <tbody>
+            <tr>
+              <td>[double click] or [f]</td>
+              <td>toggle fullscreen (recommended)</td>
+            </tr>
             <tr>
               <td>[space]</td>
               <td>pause / resume</td>
@@ -183,7 +201,7 @@
               <td>increase cell size (reset universe)</td>
             </tr>
             <tr>
-              <td>[h]</td>
+              <td>[h] or [?]</td>
               <td>toggle help</td>
             </tr>
             <tr>
@@ -194,11 +212,19 @@
               <td>[shift]+[r]</td>
               <td>reset universe (new entropy)</td>
             </tr>
+            <tr>
+              <td>[t]</td>
+              <td>toggle rendered texture</td>
+            </tr>
+            <tr>
+              <td>[u]</td>
+              <td>toggle UI</td>
+            </tr>
           </tbody>
         </table>
       </div>
     </div>
-    <script src="lib/picogl.js"></script>
+    <script src="lib/picogl.min.js"></script>
     <script src="main.js"></script>
   </body>
 </html>
