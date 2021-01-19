@@ -59,7 +59,7 @@ const float LIGHTNESS[4] = float[4](
   0.26  // 111
 );
 
-// saturation and lightness config for oscillators with period 1-4 
+// saturation and lightness config for oscillators with period 1-4
 const float SATURATION_OSC[5] = float[5](
   0.0,
   0.68,
@@ -160,14 +160,32 @@ void main() {
     */
 
     // lookup neighbor state
-    ivec4 nw = getState(coord + ivec2(-1, -1), size);
+    // ivec4 nw = getState(coord + ivec2(-1, -1), size);
+    // ivec4 n  = getState(coord + ivec2( 0, -1), size);
+    // ivec4 ne = getState(coord + ivec2( 1, -1), size);
+    // ivec4 w  = getState(coord + ivec2(-1,  0), size);
+    // ivec4 e  = getState(coord + ivec2( 1,  0), size);
+    // ivec4 sw = getState(coord + ivec2(-1,  1), size);
+    // ivec4 s  = getState(coord + ivec2( 0,  1), size);
+    // ivec4 se = getState(coord + ivec2( 1,  1), size);
+
+    ivec4 nw = getState(coord + ivec2( 0, -2), size);
     ivec4 n  = getState(coord + ivec2( 0, -1), size);
-    ivec4 ne = getState(coord + ivec2( 1, -1), size);
-    ivec4 w  = getState(coord + ivec2(-1,  0), size);
-    ivec4 e  = getState(coord + ivec2( 1,  0), size);
-    ivec4 sw = getState(coord + ivec2(-1,  1), size);
-    ivec4 s  = getState(coord + ivec2( 0,  1), size);
-    ivec4 se = getState(coord + ivec2( 1,  1), size);
+    ivec4 ne = getState(coord + ivec2( 1,  0), size);
+    ivec4 w  = getState(coord + ivec2( 2,  0), size);
+    ivec4 e  = getState(coord + ivec2( 0,  1), size);
+    ivec4 sw = getState(coord + ivec2( 0,  2), size);
+    ivec4 s  = getState(coord + ivec2(-1,  0), size);
+    ivec4 se = getState(coord + ivec2(-2,  0), size);
+
+    // ivec4 nw = getState(coord + ivec2(-2, -2), size);
+    // ivec4 n  = getState(coord + ivec2(-1, -1), size);
+    // ivec4 ne = getState(coord + ivec2( 1,  1), size);
+    // ivec4 w  = getState(coord + ivec2( 2,  2), size);
+    // ivec4 e  = getState(coord + ivec2( 1, -1), size);
+    // ivec4 sw = getState(coord + ivec2( 2, -2), size);
+    // ivec4 s  = getState(coord + ivec2(-1,  1), size);
+    // ivec4 se = getState(coord + ivec2(-2,  2), size);
 
     // lookup own past
     uvec4 last_history = texelFetch(u_history, coord, 0);
@@ -176,13 +194,23 @@ void main() {
 
     // calculate existence, without branching
     int neighbors = nw.r + n.r + ne.r + w.r + e.r + sw.r + s.r + se.r;
+      // + getState(coord + ivec2(-1, -1), size).r
+      // + getState(coord + ivec2( 1,  1), size).r
+      // + getState(coord + ivec2(-1,  1), size).r
+      // + getState(coord + ivec2( 1, -1), size).r;
+
     // standard Game of Life: born when 3 neighbors, survive when 2 or 3 neighbors
-    next_cell.r = int(neighbors == 3) | (int(neighbors == 2) & last_cell.r);
-    
+    // next_cell.r = int(neighbors == 3) | (int(neighbors == 2) & last_cell.r);
+
     // some other interesting variations
     // next_cell.r = int(neighbors == 3) | int(neighbors == 4) | (int(neighbors == 2) & last_cell.r);
     // next_cell.r = int(neighbors == 3) | int(neighbors == 1) | (int(neighbors == 2) & last_cell.r);
     // next_cell.r = int(neighbors == 3) | int(neighbors == 5) | (int(neighbors == 2) & last_cell.r);
+
+    // very interesting with neighborhood of +-1 and +-2 on x/y
+    next_cell.r = int(neighbors <= 2) | int(neighbors >= 6);
+
+    // next_cell.r = int(neighbors == 3) | ((int(neighbors >= 7) & last_cell.r) & (int(neighbors <= 8) & last_cell.r));
 
     // update history
     next_history.r = last_history.r << 1 | uint(next_cell.r);
