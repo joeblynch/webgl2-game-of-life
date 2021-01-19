@@ -175,23 +175,23 @@ void main() {
     // ivec4 s  = getState(coord + ivec2( 0,  1), size);
     // ivec4 se = getState(coord + ivec2( 1,  1), size);
 
-    ivec4 nw = getState(coord + ivec2( 0, -2), size);
-    ivec4 n  = getState(coord + ivec2( 0, -1), size);
-    ivec4 ne = getState(coord + ivec2( 1,  0), size);
-    ivec4 w  = getState(coord + ivec2( 2,  0), size);
-    ivec4 e  = getState(coord + ivec2( 0,  1), size);
-    ivec4 sw = getState(coord + ivec2( 0,  2), size);
-    ivec4 s  = getState(coord + ivec2(-1,  0), size);
-    ivec4 se = getState(coord + ivec2(-2,  0), size);
+    // ivec4 nw = getState(coord + ivec2( 0, -2), size);
+    // ivec4 n  = getState(coord + ivec2( 0, -1), size);
+    // ivec4 ne = getState(coord + ivec2( 1,  0), size);
+    // ivec4 w  = getState(coord + ivec2( 2,  0), size);
+    // ivec4 e  = getState(coord + ivec2( 0,  1), size);
+    // ivec4 sw = getState(coord + ivec2( 0,  2), size);
+    // ivec4 s  = getState(coord + ivec2(-1,  0), size);
+    // ivec4 se = getState(coord + ivec2(-2,  0), size);
 
-    // ivec4 nw = getState(coord + ivec2(-2, -2), size);
-    // ivec4 n  = getState(coord + ivec2(-1, -1), size);
-    // ivec4 ne = getState(coord + ivec2( 1,  1), size);
-    // ivec4 w  = getState(coord + ivec2( 2,  2), size);
-    // ivec4 e  = getState(coord + ivec2( 1, -1), size);
-    // ivec4 sw = getState(coord + ivec2( 2, -2), size);
-    // ivec4 s  = getState(coord + ivec2(-1,  1), size);
-    // ivec4 se = getState(coord + ivec2(-2,  2), size);
+    ivec4 nw = getState(coord + ivec2(-2, -2), size);
+    ivec4 n  = getState(coord + ivec2(-1, -1), size);
+    ivec4 ne = getState(coord + ivec2( 1,  1), size);
+    ivec4 w  = getState(coord + ivec2( 2,  2), size);
+    ivec4 e  = getState(coord + ivec2( 1, -1), size);
+    ivec4 sw = getState(coord + ivec2( 2, -2), size);
+    ivec4 s  = getState(coord + ivec2(-1,  1), size);
+    ivec4 se = getState(coord + ivec2(-2,  2), size);
 
     // lookup own past
     uvec4 last_history = texelFetch(u_history, coord, 0);
