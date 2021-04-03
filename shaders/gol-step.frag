@@ -184,7 +184,32 @@ void main() {
     // calculate existence without branching
     int neighbors = nw.r + n.r + ne.r + w.r + e.r + sw.r + s.r + se.r;
     next_cell.r = int(neighbors == 3) | (int(neighbors == 2) & last_cell.r);
-    
+
+    // highlife
+    // next_cell.r = int(neighbors == 3) | (int(neighbors == 2) & last_cell.r) | (int(neighbors == 6) & int(last_cell.r == 0));
+    // replicator
+    // next_cell.r = int(neighbors == 1) | int(neighbors == 3) | int(neighbors == 5) | int(neighbors == 7);
+    // seeds
+    // next_cell.r = int(neighbors == 2) & int(last_cell.r == 0);
+    // 34 life
+    // next_cell.r = int(neighbors == 3) | int(neighbors == 4);
+    // diamoeba (try alive=0.45)
+    // next_cell.r = (int(last_cell.r == 0) & int(neighbors == 3)) | int(neighbors >= 5);
+    // 2x2
+    // next_cell.r =
+    //   (int(last_cell.r == 0) & (int(neighbors == 3) | int(neighbors == 6))) |
+    //   (int(last_cell.r == 1) & (int(neighbors == 1) | int(neighbors == 2) | int(neighbors == 5)));
+    // day and night (try alive=0.4)
+    // next_cell.r = (int(neighbors == 3) | int(neighbors >= 6)) | (int(neighbors == 4) & int(last_cell.r));
+    // morely (big and small slow gliders)
+    // next_cell.r =
+    //   (int(last_cell.r == 0) & (int(neighbors == 3) | int(neighbors == 6) | int(neighbors == 8))) |
+    //   (int(last_cell.r == 1) & (int(neighbors == 2) | int(neighbors == 4) | int(neighbors == 5)));
+    // anneal (try alive=0.5)
+    // next_cell.r =
+    //   (int(last_cell.r == 0) & (int(neighbors == 4) | int(neighbors >= 6))) |
+    //   (int(last_cell.r == 1) & (int(neighbors == 3) | int(neighbors >= 5)));
+
     // some other interesting variations
     // next_cell.r = int(neighbors == 3) | int(neighbors == 4) | (int(neighbors == 2) & last_cell.r);
     // next_cell.r = int(neighbors == 3) | int(neighbors == 1) | (int(neighbors == 2) & last_cell.r);
