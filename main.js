@@ -3,9 +3,12 @@
 
 const DEFAULT_CELL_SIZE = Math.floor(3 * window.devicePixelRatio);
 
+const USE_PRNG = true;
 const MAX_ENTROPY = 65536;
 const CELL_STATE_BYTES = 4;
 const CELL_OSC_COUNT_BYTES = 4;
+
+const REPORT_URL = '/report';
 
 const TEXTURE_MODES = ['colors', 'alive', 'active', 'activeCounts', 'oscCount', 'minOscCount', 'state', 'hue'];
 const TEXTURE_DESC = [
@@ -26,7 +29,7 @@ function parseHash() {
     .map(kv => kv.split('='))
     .reduce((hash, [key, value]) => {
       if (key) {
-        if (value && value.match(/^-?\d+(?:\.\d+)?$/)) {
+        if (value && value.match(/^-?\d+(?:\.\d+)?$/) && key !== 'seed') {
           value = parseFloat(value);
         }
 
@@ -39,6 +42,9 @@ function parseHash() {
 
 function updateHash() {
   const options = parseHash();
+  if (USE_PRNG) {
+    options.seed = window.PRNG.toHex(_seed);
+  }
   options.alive = _cellAliveProbability;
   options.size = _cellSize;
   options.speed = _speed;
@@ -56,7 +62,7 @@ function updateHash() {
 // NOTE: seed entropy saved before 2019/11/08 uses a start generation of -1
 const START_GENERATION = -2;
 
-const FADE_OUT_GENERATION_COUNT = 30;
+const FADE_OUT_GENERATION_COUNT = 36;
 
 let _app;
 const _programs = {};
@@ -69,8 +75,10 @@ let _speed = typeof options.speed === 'number' ? options.speed : -5;
 let _saturation_on = typeof options.satOn === 'number' ? options.satOn : 0.98;
 let _saturation_off = typeof options.satOff === 'number' ? options.satOff : 0.4;
 let _lightness_on = typeof options.liOn === 'number' ? options.liOn : 0.76;
-let _lightness_off = typeof options.liOff === 'number' ? options.liOff : 0.045;
+let _lightness_off = typeof options.liOff === 'number' ? options.liOff : 0.015;
 let _textureMode = options.texture >= 0 && options.texture < TEXTURE_MODES.length ? options.texture : 0;
+let _seed = typeof options.seed === 'string' ? window.PRNG.fromHex(options.seed) : null;
+let _hasEntropy = false;
 let _activeCounts;
 let _offscreen;
 let _quad;
@@ -85,11 +93,13 @@ let _activeFramebuffer;
 let _generation = START_GENERATION;
 let _maxGenerations = -1;
 let _entropy;
+let _nextEntropy;
 let _running = true;
 let _endedGeneration = -1;
 let _lastFPSUpdate = 0;
 let _lastActiveUpdate = 0;
 let _fps = 0;
+let _initialInitComplete = false;
 const _fpsEl = document.getElementById('fps');
 const _genEl = document.getElementById('gen');
 const _activeEl = document.getElementById('active');
@@ -99,11 +109,19 @@ const ADJ_STEP = 0.005;
 
 (async function main() {
   await init();
+  _initialInitComplete = true;
 
   let frame = 0;
 
   requestAnimationFrame(function render(now) {
     requestAnimationFrame(render);
+
+    if (!_hasEntropy) {
+      drawBlankScreen();
+      _genEl.innerText = _generation;
+      _fpsEl.innerText = _activeEl.innerText = '0';
+      return;
+    }
 
     if (!_running) {
       return;
@@ -147,13 +165,48 @@ const ADJ_STEP = 0.005;
         }
 
         _endedGeneration = _generation - 1;
+
+        _nextEntropy = null;
+        generateEntropy().then(entropy => {
+          if (!entropy) {
+            console.log('entropy generation failed or was cancelled');
+            return;
+          }
+
+          if (_generation < 0) {
+            // we took too long to generate entropy and the simulation is paused, start going again
+            reset(entropy);
+          } else {
+            // still fading out, keep next entropy around for use after fade out
+            _nextEntropy = entropy;
+          }
+        })
+
+        // TODO: report results of universe
+        // const report = { ...getUniverseKey(), e: _endedGeneration };
+        // try {
+        //   fetch(REPORT_URL, {
+        //     method: 'POST',
+        //     headers: { 'Content-Type': 'application/json' },
+        //     body: JSON.stringify(report),
+        //   })
+        // } catch (ex) {
+        //   console.error(ex);
+        // }
       }
 
       _lastActiveUpdate = now;
     }
 
     if (_endedGeneration > 0 && _generation >= _endedGeneration + FADE_OUT_GENERATION_COUNT) {
-      reset();
+      // restart, if we're still waiting for entropy simulation will pause until done
+      if (_nextEntropy) {
+        reset(_nextEntropy)
+        _nextEntropy = null;
+      } else {
+        _hasEntropy = false;
+        restart();
+      }
     }
   });
 })();
@@ -265,8 +318,7 @@ document.addEventListener('keydown', (e) => {
       if (e.shiftKey) {
         reset();
       } else {
-        _generation = START_GENERATION;
-        _endedGeneration = -1;
+        restart();
       }
       break;
     case 84:  // t
@@ -280,20 +332,32 @@ document.addEventListener('keydown', (e) => {
       break;
     case 61: // + (win on FF?)
     case 187: // +
-      if (e.shiftKey) {
+      if (e.shiftKey && _initialInitComplete) {
         _cellSize++;
+        updateStateSize();
         updateHash();
-        init(true);
-        reset();
+        restart();
+        _hasEntropy = false;
+        generateEntropy().then(entropy => {
+          if (entropy) {
+            init(true, entropy);
+          }
+        });
       }
       break;
     case 173: // + (win on FF?)
     case 189: // -
-      if (e.shiftKey && _cellSize > 1) {
+      if (e.shiftKey && _cellSize > 1 && _initialInitComplete) {
         _cellSize--;
+        updateStateSize();
         updateHash();
-        init(true);
-        reset();
+        restart();
+        _hasEntropy = false;
+        generateEntropy().then(entropy => {
+          if (entropy) {
+            init(true, entropy);
+          }
+        });
       }
       break;
     case 191:  // ?
@@ -307,7 +371,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 function toggleFullscreen() {
-  if (document.fullscreenElement) { 
+  if (document.fullscreenElement) {
     document.exitFullscreen();
   } else {
     document.body.requestFullscreen({ navigationUI: 'hide' });
@@ -404,11 +468,34 @@ function draw() {
   }
 }
 
-function reset() {
+function drawBlankScreen() {
+  // used as a hack to hide the "no WebGL2 message" while waiting for initial entropy
+  _app.gl.viewport(0, 0, _canvasWidth, _canvasHeight);
+  _app.defaultDrawFramebuffer();
+  _drawCalls.blankScreen.draw();
+}
+
+function restart() {
   _generation = START_GENERATION;
   _endedGeneration = -1;
+}
 
-  _entropy = generateRandomState(_stateWidth, _stateHeight);
+async function reset(entropy) {
+  restart();
+
+  if (entropy) {
+    _entropy = entropy;
+    _hasEntropy = true;
+  } else {
+    _hasEntropy = false;
+    const entropy = await generateEntropy();
+    if (!entropy) {
+      console.log('entropy generation failed or was cancelled');
+      return;
+    }
+    _entropy = entropy;
+    _hasEntropy = true;
+  }
 
   _textures.entropy.delete();
   _textures.entropy = _app.createTexture2D(_entropy, _stateWidth, _stateHeight, {
@@ -443,7 +530,7 @@ function getActiveCells() {
   let active = 0;
 
   countActiveCells();
-  
+
   // read the active counts back from the GPU
   const { framebuffer } = _activeFramebuffer;
 
@@ -472,17 +559,25 @@ async function loadShaderSource(filename) {
   return await res.text();
 }
 
-async function init(reInit = false) {
-  const { PicoGL } = window;
+function updateStateSize() {
   const { width: displayWidth, height: displayHeight } = screen;
   const width = displayWidth * window.devicePixelRatio;
   const height = displayHeight * window.devicePixelRatio;
   _stateWidth = Math.floor(width / _cellSize);
   _stateHeight = Math.floor(height / _cellSize);
+}
+
+async function init(reInit = false, reInitEntropy) {
+  const { PicoGL } = window;
+  const { width: displayWidth, height: displayHeight } = screen;
+  const width = displayWidth * window.devicePixelRatio;
+  const height = displayHeight * window.devicePixelRatio;
 
   console.log(width, height, _stateWidth, _stateHeight);
 
   if (!reInit) {
+    updateStateSize();
+
     const canvasEl = document.getElementById('c');
     canvasEl.width = width;
     canvasEl.height = height;
@@ -518,7 +613,8 @@ async function init(reInit = false) {
       screenOscCount,
       screenMinOscCount,
       screenActive,
-      countActive
+      countActive,
+      blankScreen,
     ] = await Promise.all(
       [
         'gol-step',
@@ -529,7 +625,8 @@ async function init(reInit = false) {
         'screen-osc-count',
         'screen-min-osc-count',
         'screen-active',
-        'count-active'
+        'count-active',
+        'blank-screen',
       ].map(
         async shader => _app.createProgram(quadVertShader, await loadShaderSource(`${shader}.frag`))
       )
@@ -544,11 +641,16 @@ async function init(reInit = false) {
       screenOscCount,
       screenMinOscCount,
       screenActive,
-      countActive
+      countActive,
+      blankScreen,
     });
-  }
 
-  if (reInit) {
+    _drawCalls.blankScreen = _app.createDrawCall(_programs.blankScreen, _vao);
+    drawBlankScreen();
+
+    _entropy = await generateEntropy(_seed);
+    _hasEntropy = true;
+  } else {
     _textures.entropy.delete();
     // _textures.state.forEach(state => state.delete());
     _textures.history[0].delete();
@@ -557,11 +659,12 @@ async function init(reInit = false) {
     _textures.minOscCount.delete();
     _textures.cellColors.delete();
     _textures.activeCounts.delete();
+
+    _entropy = reInitEntropy;
+    _hasEntropy = true;
   }
 
-  const entropy = generateRandomState(_stateWidth, _stateHeight);
-
-  _textures.entropy = _app.createTexture2D(entropy, _stateWidth, _stateHeight, {
+  _textures.entropy = _app.createTexture2D(_entropy, _stateWidth, _stateHeight, {
     internalFormat: PicoGL.RGBA8I,
     format: PicoGL.RGBA_INTEGER,
     type: PicoGL.BYTE,
@@ -671,6 +774,15 @@ function cleanup() {
   _quad.delete();
 }
 
+function setAliveBits(state) {
+  // convert life state to 0/1 based on probability of being alive
+  for (let i = 0, l = state.length; i < l; i += CELL_STATE_BYTES) {
+    // assume life state is first byte of cell bytes
+    const normalized = (state[i] + 128) / 255;
+    state[i] = normalized <= _cellAliveProbability ? 1 : 0;
+  }
+}
+
 function generateRandomState(width, height) {
   const length = width * height * CELL_STATE_BYTES;
   const state = new Int8Array(length);
@@ -688,14 +800,50 @@ function generateRandomState(width, height) {
     chunk++;
   }
 
-  // convert life state to 0/1 based on probability of being alive
-  for (let i = 0; i < length; i += CELL_STATE_BYTES) {
-    // assume life state is first byte of cell bytes
-    const normalized = (state[i] + 128) / 255;
-    state[i] = normalized <= _cellAliveProbability ? 1 : 0;
+  setAliveBits(state);
+  return state;
+}
+
+async function generatePseudoRandomState(width, height) {
+  if (!_seed) {
+    throw new Error('no seed available to generate pseudo random state');
   }
 
+  const length = width * height * CELL_STATE_BYTES;
+  const rand = await window.PRNG.getBytes(_seed, length);
+  if (!rand) {
+    return null;
+  }
+
+  // TODO: use first random data for cell state, following for x/y hue vector
+  const state = new Int8Array(rand);
+  setAliveBits(state);
   return state;
+}
+
+async function generateEntropy(seed) {
+  if (USE_PRNG) {
+    if (!seed) {
+      _seed = window.PRNG.genSeed();
+    } else {
+      _seed = seed;
+    }
+    updateHash();
+
+    return generatePseudoRandomState(_stateWidth, _stateWidth);
+  } else {
+    _seed = null;
+    return generateRandomState(_stateWidth, _stateHeight);
+  }
+}
+
+function getUniverseKey() {
+  return {
+    s: window.PRNG.toHex(_seed),
+    a: _cellAliveProbability,
+    h: _stateHeight,
+    w: _stateWidth
+  };
 }
 
 function toggleHelp() {
