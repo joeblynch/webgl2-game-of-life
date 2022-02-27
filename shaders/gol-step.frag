@@ -42,9 +42,8 @@ layout(location=5) out uvec2 min_osc_count;
 // modified. this prevents short bursts of random oscillations from being highlighted or dimmed
 const uint MIN_OSC_LEN = uint(8);
 
-// TODO: playing with making oscillators rotate their hue, possibly with a hue rotation velocity that gets inherited
-//       by new cells. Works for a bit, and then stops for some reason.
-const float HUE_SHIFT_P_FACTOR = 2.0;
+// multiplier for how fast oscillators spin
+const float HUE_SPIN_P_FACTOR = 42.0;
 
 // TODO: adjustable global brightness, and adjustment at each level inc. off
 
@@ -111,6 +110,14 @@ const float RAD_TO_DEG = 180.0 / PI;
 const float DEG_TO_RAD = PI / 180.0;
 const float INV_360 = 1.0 / 360.0;
 
+// max hue spin speed is set to twice the spin of a pentadecatholon
+const float MAX_HUE_SPIN = 15.0 * HUE_SPIN_P_FACTOR * 2.0;
+const float HUE_SPIN_SCALE = MAX_HUE_SPIN / 127.0;
+const float HUE_SPIN_SCALE_INV = 1.0 / HUE_SPIN_SCALE;
+
+// percentage of spin delta applied per generation
+const float HUE_SPIN_FRICTION = 0.1;
+
 ivec4 getState(ivec2 coord, ivec2 size) {
   // handle the wrapping of coordinates around the torus manually, to support non-power-of-two sized universes
   ivec2 wrapped = (coord + size) % size;
@@ -140,7 +147,7 @@ void main() {
   uvec2 next_min_osc_count;
   float saturation, lightness;
   ivec2 hue_vec;
-  float hue_shift = 0.0;
+  float hue_spin = 0.0;
 
   // lookup this cell's state as of the last generation
   ivec4 last_cell = texelFetch(u_state, coord, 0);
@@ -184,7 +191,7 @@ void main() {
     // calculate existence without branching
     int neighbors = nw.r + n.r + ne.r + w.r + e.r + sw.r + s.r + se.r;
     next_cell.r = int(neighbors == 3) | (int(neighbors == 2) & last_cell.r);
-    
+
     // some other interesting variations
     // next_cell.r = int(neighbors == 3) | int(neighbors == 4) | (int(neighbors == 2) & last_cell.r);
     // next_cell.r = int(neighbors == 3) | int(neighbors == 1) | (int(neighbors == 2) & last_cell.r);
@@ -226,11 +233,31 @@ void main() {
     next_min_osc_count.r = min_p;
     next_min_osc_count.g = max_len;
 
-    // determine color
+    // determine next and color and spin of the cell
     hue_vec = last_cell.gb;
 
     float saturation_scale = SATURATION_ON_SCALE * u_saturation_on;
     float lightness_scale = LIGHTNESS_ON_SCALE * u_lightness_on;
+
+
+/*
+  let spin = getSpin(x, y);
+
+  const deltaExternal = NEIGHBORS.reduce((acc, [dx, dy]) => {
+    const nSpin = getSpin(x + dx, y + dy);
+    const nAlive = getAlive(x + dx, y + dy);
+    return acc + (nAlive * (nSpin - spin) * SINGLE_FRICTION);
+  }, 0);
+
+  spin += deltaExternal * DELTA_APPLY;
+
+  if (p > 0) {
+    const target = (p - 1) * OSC_SPIN_SCALE;
+    const deltaTarget = target - spin;
+
+    spin += deltaTarget * DELTA_APPLY;
+  }
+*/
 
     if (next_cell.r == 1) {
       // cell is alive
@@ -242,7 +269,28 @@ void main() {
           w.r  *  w.gb +               e.r *  e.gb +
           sw.r * sw.gb + s.r * s.gb + se.r * se.gb
         )) * 127.0);
+
+        // newly born cells start with a spin that is the average of their parents
+        hue_spin = float(
+          nw.a + n.a + ne.a +
+          w.a  +        e.a +
+          sw.a + s.a + se.a
+        ) * HUE_SPIN_SCALE_INV / float(neighbors);
+      } else {
+        // surviving cells maintain their spin across generations
+        hue_spin = float(last_cell.a) * HUE_SPIN_SCALE_INV;
       }
+
+      // share spin with neighbors, due to friction
+      int spin_int = int(hue_spin * HUE_SPIN_SCALE);
+      float delta_external = float(
+        (nw.a - spin_int) + (n.a - spin_int) + (ne.a - spin_int) +
+        (w.a  - spin_int) +                     (e.a - spin_int) +
+        (sw.a - spin_int) + (s.a - spin_int) + (se.a - spin_int)
+      ) * HUE_SPIN_SCALE_INV;
+
+      // apply external spin forces to own spin
+      hue_spin += delta_external * HUE_SPIN_FRICTION;
 
       if (min_p == uint(0)) {
         // no oscillator match, so this is an active cell
@@ -250,19 +298,28 @@ void main() {
         saturation = SATURATION[recent] * saturation_scale;
         lightness = LIGHTNESS[recent] * lightness_scale;
       } else {
-        // TODO: figure out why hue shifting oscillators only works for a few generations
         // oscillators are hue shifted at a speed relative to its P value
-        if (min_p > uint(1)) {
-          hue_shift = HUE_SHIFT_P_FACTOR * (float(min_p) - 1.0);
+        if (min_p > uint(0)) {
+          float target_spin = (float(min_p) - 1.0) * HUE_SPIN_P_FACTOR;
+          float delta_target = target_spin - hue_spin;
+
+          // apply oscillator target spin force to own spin
+          hue_spin += delta_target * HUE_SPIN_FRICTION;
         }
 
         saturation = SATURATION_OSC[min_p] * saturation_scale;
         lightness = LIGHTNESS_OSC[min_p] * lightness_scale;
       }
+
+      // save spin to cell state
+      next_cell.a = int(hue_spin * HUE_SPIN_SCALE);
     } else {
       // cell is dead, ease out to the off saturation and lightness
       float p1_factor = min(1.0, float(next_osc_count_1[0]) / 255.0 * 4.0);
       float p1_ease_out = p1_factor * (2.0 - p1_factor);
+
+      // dead cells have no spin
+      next_cell.a = int(0);
 
       saturation = mix(
         SATURATION[3] * saturation_scale * 0.78,
@@ -327,9 +384,9 @@ void main() {
 
   // calculate the color from the hsl and hue shift
   float hue_deg = atan(float(hue_vec.y), float(hue_vec.x)) * RAD_TO_DEG;
-  if (hue_shift > 0.0) {
+  if (hue_spin != 0.0) {
     vec2 shifted_hue_vec;
-    hue_deg += hue_shift;
+    hue_deg += hue_spin;
 
     shifted_hue_vec.x = cos(hue_deg * DEG_TO_RAD);
     shifted_hue_vec.y = sin(hue_deg * DEG_TO_RAD);
