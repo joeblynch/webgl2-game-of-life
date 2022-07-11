@@ -116,7 +116,10 @@ const float HUE_SPIN_SCALE = MAX_HUE_SPIN / 127.0;
 const float HUE_SPIN_SCALE_INV = 1.0 / HUE_SPIN_SCALE;
 
 // percentage of spin delta applied per generation
-const float HUE_SPIN_FRICTION = 0.1;
+const float HUE_SPIN_FRICTION = 0.05;
+
+// percentge of internal spin friction a surving cell has
+const float HUE_SPIN_INTERNAL_FRICTION = 0.02;
 
 ivec4 getState(ivec2 coord, ivec2 size) {
   // handle the wrapping of coordinates around the torus manually, to support non-power-of-two sized universes
@@ -191,6 +194,9 @@ void main() {
     // calculate existence without branching
     int neighbors = nw.r + n.r + ne.r + w.r + e.r + sw.r + s.r + se.r;
     next_cell.r = int(neighbors == 3) | (int(neighbors == 2) & last_cell.r);
+
+    // next_cell.r = int(neighbors == 3) | (int(neighbors >= 1) & (int(neighbors <= 5)) & last_cell.r);
+    // next_cell.r = int(neighbors == 3) | (int(neighbors >= 1) & (int(neighbors <= 4)) & last_cell.r);
 
     // some other interesting variations
     // next_cell.r = int(neighbors == 3) | int(neighbors == 4) | (int(neighbors == 2) & last_cell.r);
@@ -277,16 +283,16 @@ void main() {
           sw.a + s.a + se.a
         ) * HUE_SPIN_SCALE_INV / float(neighbors);
       } else {
-        // surviving cells maintain their spin across generations
-        hue_spin = float(last_cell.a) * HUE_SPIN_SCALE_INV;
+        // surviving cells maintain their spin across generations, but with some friction
+        hue_spin = float(last_cell.a) * HUE_SPIN_SCALE_INV * (1.0 - HUE_SPIN_INTERNAL_FRICTION);
       }
 
       // share spin with neighbors, due to friction
       int spin_int = int(hue_spin * HUE_SPIN_SCALE);
       float delta_external = float(
-        (nw.a - spin_int) + (n.a - spin_int) + (ne.a - spin_int) +
-        (w.a  - spin_int) +                     (e.a - spin_int) +
-        (sw.a - spin_int) + (s.a - spin_int) + (se.a - spin_int)
+        nw.r * (nw.a - spin_int) + n.r * (n.a - spin_int) + ne.r * (ne.a - spin_int) +
+        w.r  * (w.a  - spin_int) +                           e.r *  (e.a - spin_int) +
+        sw.r * (sw.a - spin_int) + s.r * (s.a - spin_int) + se.r * (se.a - spin_int)
       ) * HUE_SPIN_SCALE_INV;
 
       // apply external spin forces to own spin

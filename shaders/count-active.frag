@@ -25,6 +25,6 @@ void main() {
       active_count += uint(cell.r) & uint(min_osc.r == uint(0));
     }
   }
-  
+
   active_out.r = active_count;
 }

@@ -7,7 +7,17 @@ const MAX_ENTROPY = 65536;
 const CELL_STATE_BYTES = 4;
 const CELL_OSC_COUNT_BYTES = 4;
 
-const TEXTURE_MODES = ['colors', 'alive', 'active', 'activeCounts', 'oscCount', 'minOscCount', 'state', 'hue'];
+const TEXTURE_MODES = [
+  'colors',
+  'alive',
+  'active',
+  'activeCounts',
+  'oscCount',
+  'minOscCount',
+  'state',
+  'hue',
+  'hueSpin',
+];
 const TEXTURE_DESC = [
   '', // color composite
   'alive bit',
@@ -16,7 +26,8 @@ const TEXTURE_DESC = [
   'oscillator counters (r: P2, g: P3, b: P4)',
   'labeled oscillator counters',
   'raw state (r: alive, gb: xy hue vector)',
-  'hue state'
+  'hue state',
+  'hue spin state (r: spin > 0, g: spin < 0)',
 ];
 
 function parseHash() {
@@ -69,7 +80,7 @@ let _speed = typeof options.speed === 'number' ? options.speed : -5;
 let _saturation_on = typeof options.satOn === 'number' ? options.satOn : 0.98;
 let _saturation_off = typeof options.satOff === 'number' ? options.satOff : 0.4;
 let _lightness_on = typeof options.liOn === 'number' ? options.liOn : 0.76;
-let _lightness_off = typeof options.liOff === 'number' ? options.liOff : 0.045;
+let _lightness_off = typeof options.liOff === 'number' ? options.liOff : 0; // 0.045;
 let _textureMode = options.texture >= 0 && options.texture < TEXTURE_MODES.length ? options.texture : 0;
 let _activeCounts;
 let _offscreen;
@@ -307,7 +318,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 function toggleFullscreen() {
-  if (document.fullscreenElement) { 
+  if (document.fullscreenElement) {
     document.exitFullscreen();
   } else {
     document.body.requestFullscreen({ navigationUI: 'hide' });
@@ -386,6 +397,10 @@ function draw() {
       _drawCalls.screenHue.texture('u_state', _textures.state[frontIndex]);
       _drawCalls.screenHue.draw();
       break;
+    case 'hueSpin':
+      _drawCalls.screenHueSpin.texture('u_state', _textures.state[frontIndex]);
+      _drawCalls.screenHueSpin.draw();
+      break;
     case 'oscCount':
       _drawCalls.screenOscCount.texture('u_osc_count', _textures.oscCounts[0][frontIndex]);
       _drawCalls.screenOscCount.draw();
@@ -443,7 +458,7 @@ function getActiveCells() {
   let active = 0;
 
   countActiveCells();
-  
+
   // read the active counts back from the GPU
   const { framebuffer } = _activeFramebuffer;
 
@@ -515,6 +530,7 @@ async function init(reInit = false) {
       screenAlive,
       screenState,
       screenHue,
+      screenHueSpin,
       screenOscCount,
       screenMinOscCount,
       screenActive,
@@ -526,6 +542,7 @@ async function init(reInit = false) {
         'screen-alive',
         'screen-state',
         'screen-hue',
+        'screen-hue-spin',
         'screen-osc-count',
         'screen-min-osc-count',
         'screen-active',
@@ -541,6 +558,7 @@ async function init(reInit = false) {
       screenAlive,
       screenState,
       screenHue,
+      screenHueSpin,
       screenOscCount,
       screenMinOscCount,
       screenActive,
@@ -639,6 +657,8 @@ async function init(reInit = false) {
     .uniform('cell_size', _cellSize);
   _drawCalls.screenHue = _app.createDrawCall(_programs.screenHue, _vao)
     .uniform('cell_size', _cellSize);
+  _drawCalls.screenHueSpin = _app.createDrawCall(_programs.screenHueSpin, _vao)
+    .uniform('cell_size', _cellSize);
   _drawCalls.screenOscCount = _app.createDrawCall(_programs.screenOscCount, _vao)
     .uniform('cell_size', _cellSize);
   _drawCalls.screenMinOscCount = _app.createDrawCall(_programs.screenMinOscCount, _vao)
@@ -693,6 +713,10 @@ function generateRandomState(width, height) {
     // assume life state is first byte of cell bytes
     const normalized = (state[i] + 128) / 255;
     state[i] = normalized <= _cellAliveProbability ? 1 : 0;
+
+    // if (state[i + 3] < 0) {
+    //   state[i + 3] = -state[i + 3];
+    // }
   }
 
   return state;
