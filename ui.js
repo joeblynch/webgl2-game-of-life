@@ -79,6 +79,8 @@ function openSettings() {
   document.getElementById('val-sat-on').innerText = _saturation_on.toPrecision(3);
   document.getElementById('range-cell-size').value = _cellSize;
   document.getElementById('val-cell-size').innerText = _cellSize;
+  document.getElementById('range-alive').value = _cellAliveProbability;
+  document.getElementById('val-alive').innerText = Math.round(_cellAliveProbability * 100) + '%';
 
   document.getElementById('chk-status').checked = !document.body.classList.contains('hide-status');
 
@@ -402,6 +404,12 @@ bindSlider('cell-size',
   () => _cellSize,
   (v) => { _cellSize = v; init(true); reset(); },
   (v) => v.toString()
+);
+
+bindSlider('alive',
+  () => _cellAliveProbability,
+  (v) => { _cellAliveProbability = v; reset(); },
+  (v) => Math.round(v * 100) + '%'
 );
 
 // Stop clicks on toolbar/settings drawer from toggling toolbar
