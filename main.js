@@ -307,10 +307,15 @@ document.addEventListener('keydown', (e) => {
 });
 
 function toggleFullscreen() {
-  if (document.fullscreenElement) { 
-    document.exitFullscreen();
+  if (document.fullscreenElement || document.webkitFullscreenElement) {
+    try { screen.orientation.unlock(); } catch (e) {}
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
   } else {
-    document.body.requestFullscreen({ navigationUI: 'hide' });
+    const el = document.body;
+    const request = el.requestFullscreen || el.webkitRequestFullscreen;
+    request.call(el, { navigationUI: 'hide' }).then(() => {
+      try { screen.orientation.lock('portrait'); } catch (e) {}
+    }).catch(() => {});
   }
 }
 
