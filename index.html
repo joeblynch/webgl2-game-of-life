@@ -15,7 +15,7 @@
         font-family: Consolas, Menlo, monospace;
       }
 
-      body.hide-ui {
+      body.hide-status {
         cursor: none;
       }
 
@@ -53,14 +53,14 @@
       }
 
       #fps, #gen, #active, #toggle-help, #texture-desc {
-        position: absolute;
+        position: fixed;
         bottom: 10px;
         color: #af0;
         font-size: 12px;
         background-color: rgba(0, 0, 0, 0.75)
       }
 
-      .hide-ui #fps, .hide-ui #gen, .hide-ui #active, .hide-ui #toggle-help, .hide-ui #texture-desc {
+      .hide-status #fps, .hide-status #gen, .hide-status #active, .hide-status #toggle-help, .hide-status #texture-desc {
         display: none;
       }
 
@@ -122,6 +122,133 @@
       #help table {
         margin-top: 16px;
       }
+
+      #fps, #gen, #active, #toggle-help, #texture-desc {
+        transition: opacity 0.3s ease;
+      }
+
+      .toolbar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: rgba(0, 0, 0, 0.75);
+        transform: translateY(100%);
+        opacity: 0;
+        transition: transform 0.3s ease, opacity 0.3s ease;
+        pointer-events: none;
+        z-index: 10;
+      }
+
+      .toolbar.visible {
+        transform: translateY(0);
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .toolbar-buttons {
+        display: flex;
+        justify-content: center;
+        gap: 4px;
+        padding: 8px;
+      }
+
+      .toolbar-buttons button {
+        min-width: 44px;
+        min-height: 44px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: #af0;
+        font-size: 18px;
+        cursor: pointer;
+        border-radius: 4px;
+        touch-action: manipulation;
+      }
+
+      .settings-drawer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        max-width: 480px;
+        border-radius: 4px 4px 0 0;
+        margin: 0 auto;
+        background: rgba(0, 0, 0, 0.85);
+        color: rgba(255, 255, 255, 0.94);
+        font-family: Consolas, Menlo, monospace;
+        font-size: 12px;
+        padding: 16px;
+        transform: translateY(100%);
+        opacity: 0;
+        transition: transform 0.3s ease, opacity 0.3s ease;
+        pointer-events: none;
+        z-index: 11;
+      }
+
+      .settings-drawer.visible {
+        transform: translateY(0);
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .settings-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+        font-size: 14px;
+      }
+
+      .settings-header button {
+        background: none;
+        border: none;
+        color: rgba(255, 255, 255, 0.94);
+        font-size: 18px;
+        cursor: pointer;
+      }
+
+      .settings-checkbox {
+        gap: 6px;
+        margin-bottom: 4px;
+      }
+
+      .settings-link {
+        background: none;
+        border: none;
+        color: #af0;
+        font-family: Consolas, Menlo, monospace;
+        font-size: 12px;
+        cursor: pointer;
+        padding: 8px 0;
+        text-align: left;
+        touch-action: manipulation;
+      }
+
+      .settings-drawer label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+        white-space: nowrap;
+      }
+
+      .settings-drawer input[type="range"] {
+        flex: 1;
+      }
+
+      .settings-drawer span:last-child {
+        min-width: 40px;
+        text-align: right;
+      }
+
+      .toolbar.visible ~ #fps,
+      .toolbar.visible ~ #texture-desc,
+      .toolbar.visible ~ #gen,
+      .toolbar.visible ~ #active,
+      .toolbar.visible ~ #toggle-help {
+        opacity: 0;
+      }
+
     </style>
   </head>
   <body>
@@ -132,6 +259,31 @@
       <h4>try using Firefox or Chrome on a desktop or laptop</h4>
     </div>
     <canvas id="c"></canvas>
+    <div id="toolbar" class="toolbar">
+      <div class="toolbar-buttons">
+        <button id="btn-play" title="Play / Pause [space]">⏸︎</button>
+        <button id="btn-slower" title="Slower [↓]">−</button>
+        <button id="btn-faster" title="Faster [↑]">+</button>
+        <button id="btn-restart" title="Restart – same entropy [r]">↻</button>
+        <button id="btn-reset" title="Reset – new entropy [shift+r]">↺</button>
+        <button id="btn-texture" title="Cycle texture [t]">T</button>
+        <button id="btn-settings" title="Settings">⚙</button>
+        <button id="btn-fullscreen" title="Fullscreen [f]">⛶</button>
+      </div>
+    </div>
+    <div id="settings-drawer" class="settings-drawer">
+      <div class="settings-header">
+        <span>Settings</span>
+        <button id="btn-close-settings">✕</button>
+      </div>
+      <label>Dead brightness <input type="range" id="range-li-off" min="0" max="1" step="0.005"> <span id="val-li-off"></span></label>
+      <label>Dead saturation <input type="range" id="range-sat-off" min="0" max="1" step="0.005"> <span id="val-sat-off"></span></label>
+      <label>Alive brightness <input type="range" id="range-li-on" min="0" max="1" step="0.005"> <span id="val-li-on"></span></label>
+      <label>Alive saturation <input type="range" id="range-sat-on" min="0" max="1" step="0.005"> <span id="val-sat-on"></span></label>
+      <label>Cell size <input type="range" id="range-cell-size" min="1" max="20" step="1"> <span id="val-cell-size"></span></label>
+      <label class="settings-checkbox"><input type="checkbox" id="chk-status" checked> Show status</label>
+      <button id="btn-shortcuts" class="settings-link" title="Keyboard shortcuts [?]">Keyboard shortcuts</button>
+    </div>
     <div id="toggle-help" onclick="toggleHelp()">[?]</div>
     <div id="texture-desc"></div>
     <div id="fps"></div>
@@ -218,8 +370,8 @@
               <td>toggle rendered texture</td>
             </tr>
             <tr>
-              <td>[u]</td>
-              <td>toggle UI</td>
+              <td>[s]</td>
+              <td>toggle status</td>
             </tr>
           </tbody>
         </table>
@@ -227,5 +379,6 @@
     </div>
     <script src="lib/picogl.min.js"></script>
     <script src="main.js"></script>
+    <script src="ui.js"></script>
   </body>
 </html>

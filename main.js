@@ -37,22 +37,6 @@ function parseHash() {
     }, {});
 }
 
-function updateHash() {
-  const options = parseHash();
-  options.alive = _cellAliveProbability;
-  options.size = _cellSize;
-  options.speed = _speed;
-  options.satOn = _saturation_on.toPrecision(3);
-  options.satOff = _saturation_off.toPrecision(3);
-  options.liOn = _lightness_on.toPrecision(3);
-  options.liOff = _lightness_off.toPrecision(3);
-  options.texture = _textureMode;
-
-  location.hash = Object.keys(options)
-    .map(key => `${key}=${options[key]}`)
-    .join('&');
-}
-
 // NOTE: seed entropy saved before 2019/11/08 uses a start generation of -1
 const START_GENERATION = -2;
 
@@ -94,8 +78,6 @@ const _fpsEl = document.getElementById('fps');
 const _genEl = document.getElementById('gen');
 const _activeEl = document.getElementById('active');
 const _textureDescEl = document.getElementById('texture-desc');
-
-const ADJ_STEP = 0.005;
 
 (async function main() {
   await init();
@@ -157,169 +139,6 @@ const ADJ_STEP = 0.005;
     }
   });
 })();
-
-document.addEventListener('keydown', (e) => {
-  switch (e.which) {
-    case 32:  // SPACE
-      _running = !_running;
-      break;
-    case 37:  // LEFT
-      e.preventDefault();
-      if (e.shiftKey) {
-        if (e.ctrlKey) {
-          if (_saturation_on >= ADJ_STEP) {
-            _saturation_on -= ADJ_STEP;
-          } else {
-            _saturation_on = 0;
-          }
-        } else {
-          if (_saturation_off >= ADJ_STEP) {
-            _saturation_off -= ADJ_STEP;
-          } else {
-            _saturation_off = 0;
-          }
-        }
-      } else {
-        if (e.ctrlKey) {
-          if (_lightness_on >= ADJ_STEP) {
-            _lightness_on -= ADJ_STEP;
-          } else {
-            _lightness_on = 0;
-          }
-        } else {
-          if (_lightness_off >= ADJ_STEP) {
-            _lightness_off -= ADJ_STEP;
-          } else {
-            _lightness_off = 0;
-          }
-        }
-      }
-
-      updateHash();
-
-      break;
-    case 38:  // UP
-      _speed++;
-      updateHash();
-      e.preventDefault();
-      break;
-    case 39:  // RIGHT
-      e.preventDefault();
-      if (e.shiftKey) {
-        if (e.ctrlKey) {
-          if (_saturation_on < 1 - ADJ_STEP) {
-            _saturation_on += ADJ_STEP;
-          } else {
-            _saturation_on = 1;
-          }
-        } else {
-          if (_saturation_off < 1 - ADJ_STEP) {
-            _saturation_off += ADJ_STEP;
-          } else {
-            _saturation_off = 1;
-          }
-        }
-      } else {
-        if (e.ctrlKey) {
-          if (_lightness_on < 1 - ADJ_STEP) {
-            _lightness_on += ADJ_STEP;
-          } else {
-            _lightness_on = 1;
-          }
-        } else {
-          if (_lightness_off < 1 - ADJ_STEP) {
-            _lightness_off += ADJ_STEP;
-          } else {
-            _lightness_off = 1;
-          }
-        }
-      }
-
-      updateHash();
-
-      break;
-    case 40:  // DOWN
-      _speed--;
-      updateHash();
-      e.preventDefault();
-      break;
-    case 49:  // 1-8
-    case 50:
-    case 51:
-    case 52:
-    case 53:
-    case 54:
-    case 55:
-    case 56:
-      _textureMode = e.which - 49;
-      _textureDescEl.innerText = TEXTURE_DESC[_textureMode];
-      draw();
-      break;
-    case 70:  // f
-      toggleFullscreen();
-      break;
-    case 72:  // h
-      toggleHelp();
-      break;
-    case 82:  // r
-      if (e.shiftKey) {
-        reset();
-      } else {
-        _generation = START_GENERATION;
-        _endedGeneration = -1;
-      }
-      break;
-    case 84:  // t
-      _textureMode = (_textureMode + 1) % TEXTURE_MODES.length;
-      _textureDescEl.innerText = TEXTURE_DESC[_textureMode];
-      updateHash();
-      draw();
-      break;
-    case 85: // u
-      toggleUI();
-      break;
-    case 61: // + (win on FF?)
-    case 187: // +
-      if (e.shiftKey) {
-        _cellSize++;
-        updateHash();
-        init(true);
-        reset();
-      }
-      break;
-    case 173: // + (win on FF?)
-    case 189: // -
-      if (e.shiftKey && _cellSize > 1) {
-        _cellSize--;
-        updateHash();
-        init(true);
-        reset();
-      }
-      break;
-    case 191:  // ?
-      if (e.shiftKey) {
-        toggleHelp();
-      }
-      break;
-    default:
-      console.log(e.which);
-  }
-});
-
-function toggleFullscreen() {
-  if (document.fullscreenElement || document.webkitFullscreenElement) {
-    try { screen.orientation.unlock(); } catch (e) {}
-    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
-  } else {
-    const el = document.body;
-    const request = el.requestFullscreen || el.webkitRequestFullscreen;
-    request.call(el, { navigationUI: 'hide' }).then(() => {
-      try { screen.orientation.lock('portrait'); } catch (e) {}
-    }).catch(() => {});
-  }
-}
-
-document.addEventListener('dblclick', toggleFullscreen);
 
 function step() {
   const backIndex = (_generation + (_generation < 0 ? 2 : 0)) % 2;
@@ -703,11 +522,3 @@ function generateRandomState(width, height) {
   return state;
 }
 
-function toggleHelp() {
-  const el = document.getElementById('help-container');
-  el.classList.toggle('hidden');
-}
-
-function toggleUI() {
-  document.body.classList.toggle('hide-ui');
-}
