@@ -239,7 +239,8 @@
         opacity: 0;
       }
 
-      @media (orientation: landscape) {
+      @media (display-mode: standalone) and (orientation: landscape),
+             (pointer: coarse) and (orientation: landscape) {
         #c {
           transform: rotate(-90deg);
           transform-origin: left top;
