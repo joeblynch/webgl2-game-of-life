@@ -181,4 +181,5 @@ oscillator periods are allowed to continue running, for their rarity.
 2019/01 - 2019/03: WebGL implementation
 2019/03 - 2019/07: WebGL2 implementation, to allow for multiple shader outputs and integer textures
 2019/07 - 2020/02: occasional tweaks, cleanup for GitHub arctic code vault
+2026/03 - 2026/04: mobile touch UI, settings drawer, PWA support, localStorage config persistence
 ```
