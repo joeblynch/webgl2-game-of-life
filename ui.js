@@ -415,6 +415,11 @@ _settingsDrawerEl.addEventListener('click', (e) => { e.stopPropagation(); });
   const uiHide = typeof options.uiHide === 'number' ? options.uiHide : 5;
   _uiHideDelay = uiHide < 0 ? -1 : uiHide * 1000;
 
+  const isPWA = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+  if (isPWA) {
+    document.body.classList.add('hide-status');
+  }
+
   if (!document.fullscreenEnabled && !document.webkitFullscreenEnabled) {
     document.getElementById('btn-fullscreen').style.display = 'none';
   }
