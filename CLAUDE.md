@@ -31,8 +31,10 @@ The project is **client-side only** with no build system, package.json, or npm d
 
 ### Core Files
 
-- **[index.html](index.html)** - Entry point with canvas setup, UI elements, and help modal
-- **[main.js](main.js)** - JavaScript orchestration layer (rendering loop, input handling, WebGL setup)
+- **[index.html](index.html)** - Entry point with canvas, toolbar/settings drawer HTML, CSS, and help modal
+- **[main.js](main.js)** - WebGL setup, rendering loop, simulation state
+- **[ui.js](ui.js)** - All UI logic: toolbar, settings drawer, keyboard/touch handlers, config persistence
+- **[manifest.json](manifest.json)** - PWA web app manifest
 - **[shaders/gol-step.frag](shaders/gol-step.frag)** - The core Game of Life logic (read this first to understand the implementation)
 - **[lib/picogl.min.js](lib/picogl.min.js)** - External WebGL2 wrapper library (minified, do not modify)
 
@@ -86,12 +88,16 @@ The application uses a multi-pass rendering pipeline:
 
 ### State Management
 
-Global state in [main.js](main.js):
+Global state in [main.js](main.js) (shared with [ui.js](ui.js) via global scope):
 - `_generation`: Current generation (starts at -2)
 - `_endedGeneration`: When universe ended (-1 if still running)
 - `_textures`: Object containing all WebGL textures (state, history, oscCounts, etc.)
 - `_drawCalls`: PicoGL draw call objects for each shader program
-- User preferences: cell size, speed, saturation/lightness multipliers, alive probability
+- User preferences: `_cellSize`, `_speed`, `_saturation_on/off`, `_lightness_on/off`, `_cellAliveProbability`, `_textureMode`
+
+UI state in [ui.js](ui.js):
+- `_uiHideDelay`: Toolbar auto-hide delay in ms (-1 = disabled)
+- `_autoHideTimer`: Active auto-hide setTimeout handle
 
 ## Modifying the Code
 
@@ -109,30 +115,53 @@ Modify `OSCILLATOR_PERIODS` array in [gol-step.frag:95-103](shaders/gol-step.fra
 Adjust constants in [gol-step.frag:52-83](shaders/gol-step.frag#L52-L83) or modify user-adjustable uniforms (u_saturation_on, u_lightness_on, etc.).
 
 **To add keyboard controls:**
-Add cases to keydown handler in [main.js:161-307](main.js#L161-L307).
+Add cases to keydown handler in [ui.js:149-296](ui.js#L149-L296).
+
+**To add toolbar buttons:**
+Add button HTML in [index.html](index.html) toolbar div, wire handler in [ui.js](ui.js) button handlers section.
+
+**To add settings:**
+Add input HTML to settings drawer in [index.html](index.html), sync in `openSettings()` and bind handler in [ui.js](ui.js).
 
 **To add visualization modes:**
 1. Add mode to `TEXTURE_MODES` array in [main.js:10](main.js#L10)
 2. Add description to `TEXTURE_DESC` in [main.js:11-20](main.js#L11-L20)
 3. Create new screen-*.frag shader
-4. Load shader in [main.js:514-541](main.js#L514-L541)
-5. Add draw call case in [main.js:378-409](main.js#L378-L409)
+4. Load shader in [main.js:344-368](main.js#L344-L368)
+5. Add draw call case in [main.js:205-236](main.js#L205-L236)
 
-## Hash Parameters
+## Settings Persistence
 
-URL hash controls initial settings:
+Settings are stored in two places, with hash parameters taking priority:
+1. **URL hash** — shareable, overrides localStorage on load
+2. **localStorage** (`gol-config`) — persists across sessions automatically
+
+Both are updated on every setting change via `updateConfig()` in [ui.js](ui.js).
+
+### Hash Parameters
+
 - `alive`: Probability cell starts alive (0-1, default 0.5)
 - `size`: Cell size in pixels (default 3 * devicePixelRatio)
 - `speed`: Generations per frame (negative = slower, default -5)
 - `satOn/satOff`: Saturation multipliers (0-1)
 - `liOn/liOff`: Lightness multipliers (0-1)
 - `texture`: Visualization mode index (0-7)
+- `uiHide`: Toolbar auto-hide delay in seconds (-1 = no auto-hide, default 5)
 
 Example: `index.html#alive=1&size=2&speed=-1` creates a 100% alive universe with smaller, slower cells.
+
+## Mobile & PWA Support
+
+- Touch-friendly toolbar with 44px button targets, shown/hidden by tapping the canvas
+- Settings drawer with sliders for brightness, saturation, cell size, alive probability
+- PWA manifest and Apple meta tags for home screen installation (standalone mode, translucent black status bar)
+- CSS canvas rotation for landscape orientation in standalone mode
+- Fullscreen button hidden via feature detection where unsupported (e.g. iPhone Safari)
+- `touch-action: manipulation` on toolbar buttons to prevent double-tap zoom
 
 ## WebGL2 Requirements
 
 - This project requires WebGL2 (uses integer textures, MRT, bit operations)
 - No fallback for WebGL 1.0
 - Desktop Chrome/Firefox recommended
-- Mobile/Safari support may be limited
+- Mobile Chrome/Firefox/Safari supported via touch UI and PWA
