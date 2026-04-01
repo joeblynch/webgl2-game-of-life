@@ -295,10 +295,20 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// ─── Canvas click / double-click ───
+// ─── Canvas click / double-click / mouse move ───
 
 document.getElementById('c').addEventListener('click', toggleToolbar);
 document.getElementById('c').addEventListener('dblclick', toggleFullscreen);
+
+if (window.matchMedia('(pointer: fine)').matches) {
+  document.addEventListener('mousemove', () => {
+    if (!isToolbarVisible()) {
+      showToolbar();
+    } else {
+      resetAutoHide();
+    }
+  });
+}
 
 // ─── Toolbar button handlers ───
 
