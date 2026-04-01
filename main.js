@@ -20,21 +20,29 @@ const TEXTURE_DESC = [
 ];
 
 function parseHash() {
-  return location.hash
-    .substr(1)
+  let stored = {};
+  try {
+    const json = localStorage.getItem('gol-config');
+    if (json) stored = JSON.parse(json);
+  } catch (e) {}
+
+  const hash = location.hash
+    .substring(1)
     .split('&')
     .map(kv => kv.split('='))
-    .reduce((hash, [key, value]) => {
+    .reduce((h, [key, value]) => {
       if (key) {
         if (value && value.match(/^-?\d+(?:\.\d+)?$/)) {
           value = parseFloat(value);
         }
 
-        hash[key] = value;
+        h[key] = value;
       }
 
-      return hash;
+      return h;
     }, {});
+
+  return Object.assign(stored, hash);
 }
 
 // NOTE: seed entropy saved before 2019/11/08 uses a start generation of -1

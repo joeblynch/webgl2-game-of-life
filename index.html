@@ -255,6 +255,18 @@
         opacity: 0;
       }
 
+      @media (orientation: landscape) {
+        #c {
+          transform: rotate(-90deg);
+          transform-origin: left top;
+          width: 100vh;
+          height: 100vw;
+          overflow: hidden;
+          position: absolute;
+          top: 100%;
+          left: 0;
+        }
+      }
     </style>
   </head>
   <body>
@@ -382,7 +394,7 @@
             </tr>
           </tbody>
         </table>
-      </div>
+    </div>
     </div>
     <script src="lib/picogl.min.js"></script>
     <script src="main.js"></script>

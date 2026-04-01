@@ -7,7 +7,7 @@ const _btnPlay = document.getElementById('btn-play');
 let _uiHideDelay;
 let _autoHideTimer = null;
 
-function updateHash() {
+function updateConfig() {
   const options = parseHash();
   options.alive = _cellAliveProbability;
   options.size = _cellSize;
@@ -24,6 +24,23 @@ function updateHash() {
   location.hash = Object.keys(options)
     .map(key => `${key}=${options[key]}`)
     .join('&');
+
+  saveConfig();
+}
+
+function saveConfig() {
+  try {
+    localStorage.setItem('gol-config', JSON.stringify({
+      alive: _cellAliveProbability,
+      size: _cellSize,
+      speed: _speed,
+      satOn: parseFloat(_saturation_on.toPrecision(3)),
+      satOff: parseFloat(_saturation_off.toPrecision(3)),
+      liOn: parseFloat(_lightness_on.toPrecision(3)),
+      liOff: parseFloat(_lightness_off.toPrecision(3)),
+      texture: _textureMode
+    }));
+  } catch (e) {}
 }
 
 // ─── Toolbar show/hide ───
@@ -167,12 +184,12 @@ document.addEventListener('keydown', (e) => {
         }
       }
 
-      updateHash();
+      updateConfig();
 
       break;
     case 38:  // UP
       _speed++;
-      updateHash();
+      updateConfig();
       e.preventDefault();
       break;
     case 39:  // RIGHT
@@ -207,12 +224,12 @@ document.addEventListener('keydown', (e) => {
         }
       }
 
-      updateHash();
+      updateConfig();
 
       break;
     case 40:  // DOWN
       _speed--;
-      updateHash();
+      updateConfig();
       e.preventDefault();
       break;
     case 49:  // 1-8
@@ -244,7 +261,7 @@ document.addEventListener('keydown', (e) => {
     case 84:  // t
       _textureMode = (_textureMode + 1) % TEXTURE_MODES.length;
       _textureDescEl.innerText = TEXTURE_DESC[_textureMode];
-      updateHash();
+      updateConfig();
       draw();
       break;
     case 83: // s
@@ -254,7 +271,7 @@ document.addEventListener('keydown', (e) => {
     case 187: // +
       if (e.shiftKey) {
         _cellSize++;
-        updateHash();
+        updateConfig();
         init(true);
         reset();
       }
@@ -263,7 +280,7 @@ document.addEventListener('keydown', (e) => {
     case 189: // -
       if (e.shiftKey && _cellSize > 1) {
         _cellSize--;
-        updateHash();
+        updateConfig();
         init(true);
         reset();
       }
@@ -295,14 +312,14 @@ document.getElementById('btn-play').addEventListener('click', (e) => {
 document.getElementById('btn-slower').addEventListener('click', (e) => {
   e.stopPropagation();
   _speed--;
-  updateHash();
+  updateConfig();
   resetAutoHide();
 });
 
 document.getElementById('btn-faster').addEventListener('click', (e) => {
   e.stopPropagation();
   _speed++;
-  updateHash();
+  updateConfig();
   resetAutoHide();
 });
 
@@ -323,7 +340,7 @@ document.getElementById('btn-texture').addEventListener('click', (e) => {
   e.stopPropagation();
   _textureMode = (_textureMode + 1) % TEXTURE_MODES.length;
   _textureDescEl.innerText = TEXTURE_DESC[_textureMode];
-  updateHash();
+  updateConfig();
   draw();
   resetAutoHide();
 });
@@ -371,7 +388,7 @@ function bindSlider(id, getter, setter, formatter) {
     e.stopPropagation();
     setter(parseFloat(range.value));
     val.innerText = formatter(getter());
-    updateHash();
+    updateConfig();
     resetAutoHide();
   });
 }
