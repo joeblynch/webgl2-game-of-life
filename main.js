@@ -53,7 +53,7 @@ let _speed = typeof options.speed === 'number' ? options.speed : -5;
 let _saturation_on = typeof options.satOn === 'number' ? options.satOn : 0.98;
 let _saturation_off = typeof options.satOff === 'number' ? options.satOff : 0.4;
 let _lightness_on = typeof options.liOn === 'number' ? options.liOn : 0.76;
-let _lightness_off = typeof options.liOff === 'number' ? options.liOff : 0.045;
+let _lightness_off = typeof options.liOff === 'number' ? options.liOff : 0;
 let _textureMode = options.texture >= 0 && options.texture < TEXTURE_MODES.length ? options.texture : 0;
 let _activeCounts;
 let _offscreen;
