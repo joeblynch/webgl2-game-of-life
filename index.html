@@ -32,26 +32,10 @@
         right: 0;
         bottom: 0;
         color: #fff;
-        display: flex;
+        display: none;
         align-items: center;
         justify-content: center;
         flex-direction: column;
-        animation-name: error-fade;
-        animation-duration: 6s;
-      }
-
-      @keyframes error-fade {
-        0% {
-          opacity: 0;
-        }
-
-        75% {
-          opacity: 0;
-        }
-
-        100% {
-          opacity: 1;
-        }
       }
 
       #c {
@@ -274,7 +258,6 @@
       <!-- iOS with experimental implements nothing of WebGL2 except the interface that falsely reports support :-( -->
       <!-- instead assume that the canvas will cover the "no WebGL2" message, and fade it in to give loading time -->
       <h1>:( sorry...WebGL2 is required</h1>
-      <h4>try using Firefox or Chrome on a desktop or laptop</h4>
     </div>
     <canvas id="c"></canvas>
     <div id="toolbar" class="toolbar">

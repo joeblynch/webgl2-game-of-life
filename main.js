@@ -316,6 +316,12 @@ async function init(reInit = false) {
 
   if (!reInit) {
     const canvasEl = document.getElementById('c');
+
+    if (!canvasEl.getContext('webgl2')) {
+      document.getElementById('no-webgl2').style.display = 'flex';
+      return;
+    }
+
     canvasEl.width = width;
     canvasEl.height = height;
     canvasEl.style.width = `${displayWidth}px`;
