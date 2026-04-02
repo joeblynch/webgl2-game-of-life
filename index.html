@@ -249,6 +249,11 @@
           left: 0;
           transform: none;
         }
+        .toolbar { padding-bottom: env(safe-area-inset-bottom, 0px); }
+        .settings-drawer { padding-bottom: env(safe-area-inset-bottom, 0px); }
+        #fps, #gen, #active, #texture-desc {
+          bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+        }
       }
 
       @media (display-mode: standalone) and (orientation: landscape),
