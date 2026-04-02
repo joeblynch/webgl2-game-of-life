@@ -62,6 +62,7 @@ let _saturation_on = typeof options.satOn === 'number' ? options.satOn : 0.98;
 let _saturation_off = typeof options.satOff === 'number' ? options.satOff : 0.4;
 let _lightness_on = typeof options.liOn === 'number' ? options.liOn : 0.76;
 let _lightness_off = typeof options.liOff === 'number' ? options.liOff : 0;
+let _hueShift = typeof options.hueShift === 'number' ? options.hueShift : 2.0;
 let _textureMode = options.texture >= 0 && options.texture < TEXTURE_MODES.length ? options.texture : 0;
 let _gridWidth = options.width > 0 ? Math.floor(options.width) : 0;
 let _gridHeight = options.height > 0 ? Math.floor(options.height) : 0;
@@ -183,6 +184,7 @@ function step() {
   _drawCalls.golStep.uniform('u_saturation_off', _saturation_off);
   _drawCalls.golStep.uniform('u_lightness_on', _lightness_on);
   _drawCalls.golStep.uniform('u_lightness_off', _lightness_off);
+  _drawCalls.golStep.uniform('u_hue_shift', _hueShift);
   _drawCalls.golStep.uniform('u_existence', existence);
   _drawCalls.golStep.texture('u_state', _textures.state[backIndex]);
   _drawCalls.golStep.texture('u_history', _textures.history[backIndex]);

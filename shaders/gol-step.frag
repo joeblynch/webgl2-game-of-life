@@ -42,7 +42,7 @@ layout(location=5) out uvec2 min_osc_count;
 // modified. this prevents short bursts of random oscillations from being highlighted or dimmed
 const uint MIN_OSC_LEN = uint(8);
 
-const float HUE_SHIFT_P_FACTOR = 2.0;
+uniform float u_hue_shift;
 
 // TODO: adjustable global brightness, and adjustment at each level inc. off
 
@@ -258,7 +258,7 @@ void main() {
       } else {
         // oscillators are hue shifted at a speed relative to its P value
         if (min_p > uint(1)) {
-          hue_shift = HUE_SHIFT_P_FACTOR * (float(min_p) - 1.0);
+          hue_shift = u_hue_shift * (float(min_p) - 1.0);
         }
 
         saturation = SATURATION_OSC[min_p] * saturation_scale;

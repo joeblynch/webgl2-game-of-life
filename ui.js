@@ -37,6 +37,7 @@ function updateConfig() {
   options.satOff = _saturation_off.toPrecision(3);
   options.liOn = _lightness_on.toPrecision(3);
   options.liOff = _lightness_off.toPrecision(3);
+  options.hueShift = _hueShift.toPrecision(2);
   options.texture = _textureMode;
   if (_uiHideDelay !== 3000) {
     options.uiHide = _uiHideDelay / 1000;
@@ -59,6 +60,7 @@ function saveConfig() {
       satOff: parseFloat(_saturation_off.toPrecision(3)),
       liOn: parseFloat(_lightness_on.toPrecision(3)),
       liOff: parseFloat(_lightness_off.toPrecision(3)),
+      hueShift: parseFloat(_hueShift.toPrecision(2)),
       texture: _textureMode
     }));
   } catch (e) {}
@@ -115,6 +117,8 @@ function openSettings() {
   document.getElementById('val-li-on').innerText = _lightness_on.toPrecision(3);
   document.getElementById('range-sat-on').value = _saturation_on;
   document.getElementById('val-sat-on').innerText = _saturation_on.toPrecision(3);
+  document.getElementById('range-hue-shift').value = _hueShift;
+  document.getElementById('val-hue-shift').innerText = _hueShift.toPrecision(2);
   document.getElementById('range-cell-size').value = _cellSize;
   document.getElementById('val-cell-size').innerText = _cellSize;
   document.getElementById('range-alive').value = _cellAliveProbability;
@@ -447,6 +451,12 @@ bindSlider('sat-on',
   () => _saturation_on,
   (v) => { _saturation_on = v; },
   (v) => v.toPrecision(3)
+);
+
+bindSlider('hue-shift',
+  () => _hueShift,
+  (v) => { _hueShift = v; },
+  (v) => v.toPrecision(2)
 );
 
 bindSlider('cell-size',
