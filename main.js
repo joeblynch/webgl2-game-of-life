@@ -3,7 +3,7 @@
 
 const DEFAULT_CELL_SIZE = Math.floor(2 * window.devicePixelRatio) + 1;
 const DEFAULT_ALIVE_PROBABILITY = 0.5;
-const DEFAULT_TARGET_FPS = 30;
+const DEFAULT_TARGET_FPS = 15;
 const DEFAULT_SATURATION_ON = 0.98;
 const DEFAULT_SATURATION_OFF = 1.0;
 const DEFAULT_LIGHTNESS_ON = 0.76;
@@ -17,7 +17,7 @@ const CELL_OSC_COUNT_BYTES = 4;
 
 const TEXTURE_MODES = ['colors', 'alive', 'active', 'activeCounts', 'oscCount', 'minOscCount', 'state', 'hue'];
 const TEXTURE_DESC = [
-  '', // color composite
+  '',
   'alive bit',
   'P0 (non-oscillating) alive cells',
   'P0 (non-oscillating) alive cells with block counts',
@@ -115,11 +115,22 @@ let _stepBudget = 0;
 let _lastFrameTime = 0;
 let _speedUpPressedAt = null;
 let _speedDownPressedAt = null;
+let _momentumVX = 0, _momentumVY = 0;
+let _momentumActive = false;
 let _underperformStart = 0;
 const _fpsEl = document.getElementById('fps');
 const _genEl = document.getElementById('gen');
 const _activeEl = document.getElementById('active');
 const _textureDescEl = document.getElementById('texture-desc');
+const _speedDisplayEl = document.getElementById('speed-display');
+const _toolbarGenEl = document.getElementById('toolbar-gen');
+const _toolbarActiveEl = document.getElementById('toolbar-active');
+
+function updateSpeedDisplay() {
+  const d = Math.round(_targetFPS);
+  _speedDisplayEl.innerText = (d >= 1000 ? (d / 1000).toFixed(1) + 'k' : d) + 'fps';
+}
+updateSpeedDisplay();
 
 (async function main() {
   await init();
@@ -140,6 +151,8 @@ const _textureDescEl = document.getElementById('texture-desc');
         const delta = rampRate * (deltaTime / 1000);
         if (_speedUpPressedAt) _targetFPS += delta;
         else _targetFPS = Math.max(1, _targetFPS - delta);
+
+        updateSpeedDisplay();
       }
     }
 
@@ -172,6 +185,7 @@ const _textureDescEl = document.getElementById('texture-desc');
 
     if (stepped) {
       _genEl.innerText = _generation;
+      _toolbarGenEl.innerText = _generation;
     }
 
     applyMomentum();
@@ -188,6 +202,8 @@ const _textureDescEl = document.getElementById('texture-desc');
     if (now - 1000 >= _lastFPSUpdate) {
       _actualFPS = _stepsThisSecond;
       _fpsEl.innerText = _stepsThisSecond;
+
+      updateSpeedDisplay();
 
       // auto-downgrade: if actual < target * 0.9 for > 2 seconds
       if (_stepsThisSecond < _targetFPS * 0.9) {
@@ -207,6 +223,7 @@ const _textureDescEl = document.getElementById('texture-desc');
     if (now - 250 >= _lastActiveUpdate && _generation > 0 && _endedGeneration < 0) {
       const active = getActiveCells();
       _activeEl.innerText = active;
+      _toolbarActiveEl.innerText = active;
       if (!active && _generation + 2 > Math.max(_universeWidth >> 1, _universeHeight >> 1)) {
         if (_generation > _maxGenerations) {
           _maxGenerations = _generation;

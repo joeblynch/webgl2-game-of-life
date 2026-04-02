@@ -50,76 +50,40 @@
         transform: translate(-50%, -50%);
       }
 
-      #fps, #gen, #active, #texture-desc {
+      #status-overlay {
         position: fixed;
         bottom: 10px;
-        color: #af0;
-        font-size: 12px;
-        background-color: rgba(0, 0, 0, 0.75)
+        right: 10px;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 1px;
+        font-size: 10px;
+        font-family: Consolas, Menlo, monospace;
+        color: rgba(255, 255, 255, 0.6);
+        background-color: rgba(0, 0, 0, 0.75);
+        padding: 4px 6px;
+        border-radius: 2px;
+        transition: opacity 0.3s ease;
       }
 
-      .hide-status #fps, .hide-status #gen, .hide-status #active, .hide-status #texture-desc {
-        display: none;
-      }
+      #status-overlay span { color: #af0; }
+
+      .hide-status #status-overlay { display: none; }
 
       #texture-desc {
-        left: 50px;
-      }
-
-      #fps {
-        right: 10px;
-      }
-
-      #gen {
-        right: 50px;
-      }
-
-      #active {
-        right: 100px;
-      }
-
-      #help-container {
-        display: flex;
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        align-items: center;
-        justify-content: center;
-        background-color: rgba(0,0,0,0.4);
-        cursor: default;
-      }
-
-      #help-container.hidden {
-        display: none;
-      }
-
-      #help {
-        background-color: rgba(0,0,0,0.6);
-        border: 1px solid rgb(255, 255, 255, 0.94);
-        padding: 16px;
-        color: rgb(255, 255, 255, 0.94);
-        font-size: 10pt;
-        -webkit-user-select: text;
-        user-select: text;
-      }
-
-      #help h1 {
-        margin-top: 0;
-        font-weight: 100;
-      }
-
-      #help a {
-        color: #fff !important;
-      }
-
-      #help table {
-        margin-top: 16px;
-      }
-
-      #fps, #gen, #active, #texture-desc {
-        transition: opacity 0.3s ease;
+        position: fixed;
+        bottom: 10px;
+        left: 10px;
+        color: #af0;
+        font-size: 10px;
+        font-family: Consolas, Menlo, monospace;
+        background-color: rgba(0, 0, 0, 0.75);
+        padding: 2px 6px;
+        border-radius: 2px;
+        opacity: 0;
+        transition: transform 0.3s ease, opacity 0.3s ease;
+        z-index: 10;
       }
 
       .toolbar {
@@ -143,7 +107,7 @@
 
       .toolbar-buttons {
         display: flex;
-        justify-content: center;
+        align-items: flex-end;
         gap: 4px;
         padding: 8px;
       }
@@ -158,7 +122,60 @@
         cursor: pointer;
         border-radius: 4px;
         touch-action: manipulation;
+        flex-shrink: 0;
       }
+
+      #btn-play {
+        border-radius: 50%;
+        margin-right: 8px;
+      }
+
+      .speed-control {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0;
+        margin: 0 4px;
+      }
+
+      .speed-control .speed-label {
+        font-size: 9px;
+        color: rgba(255, 255, 255, 0.5);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        line-height: 1;
+        margin-bottom: 2px;
+      }
+
+      .speed-control .speed-row {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .speed-control .speed-display {
+        color: #af0;
+        font-size: 14px;
+        min-width: 50px;
+        text-align: center;
+        font-family: Consolas, Menlo, monospace;
+      }
+
+      .toolbar-gap { flex: 1; }
+
+      .toolbar-stats {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 1px;
+        margin-right: 8px;
+        font-size: 10px;
+        color: rgba(255, 255, 255, 0.6);
+        font-family: Consolas, Menlo, monospace;
+        white-space: nowrap;
+      }
+
+      .toolbar-stats span { color: #af0; }
 
       .settings-drawer {
         position: fixed;
@@ -243,12 +260,59 @@
         text-align: right;
       }
 
-      .toolbar.visible ~ #fps,
-      .toolbar.visible ~ #texture-desc,
-      .toolbar.visible ~ #gen,
-      .toolbar.visible ~ #active {
+      .menu-popup {
+        position: fixed;
+        bottom: 60px;
+        right: 8px;
+        background: rgba(0, 0, 0, 0.9);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 4px;
+        padding: 4px 0;
+        z-index: 12;
+        min-width: 200px;
+        display: none;
+        font-family: Consolas, Menlo, monospace;
+      }
+
+      .menu-popup.visible { display: block; }
+
+      .menu-popup button {
+        display: block;
+        width: 100%;
+        background: none;
+        border: none;
+        color: rgba(255, 255, 255, 0.9);
+        font-family: Consolas, Menlo, monospace;
+        font-size: 13px;
+        padding: 10px 16px;
+        text-align: left;
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+
+      .menu-popup button:hover { background: rgba(255, 255, 255, 0.1); }
+
+      .menu-popup .shortcut {
+        color: rgba(255, 255, 255, 0.4);
+        font-size: 11px;
+      }
+
+      .toolbar.visible ~ #status-overlay {
         opacity: 0;
       }
+
+      /* toolbar open: show above toolbar */
+      .toolbar.visible ~ #texture-desc {
+        opacity: 1;
+        transform: translateY(-56px);
+      }
+
+      /* toolbar closed + status visible: show at bottom */
+      body:not(.hide-status) #texture-desc {
+        opacity: 1;
+      }
+
+      /* toolbar closed + status hidden: hide (default opacity: 0 applies) */
 
       @media (display-mode: standalone) {
         /* keep canvas fullscreen in PWA mode, so safe area doesn't offset it */
@@ -259,7 +323,8 @@
         }
         .toolbar { padding-bottom: env(safe-area-inset-bottom, 0px); }
         .settings-drawer { padding-bottom: env(safe-area-inset-bottom, 0px); }
-        #fps, #gen, #active, #texture-desc {
+        .menu-popup { bottom: calc(60px + env(safe-area-inset-bottom, 0px)); }
+        #status-overlay, #texture-desc {
           bottom: calc(10px + env(safe-area-inset-bottom, 0px));
         }
       }
@@ -298,14 +363,30 @@
     <div id="toolbar" class="toolbar visible">
       <div class="toolbar-buttons">
         <button id="btn-play" title="Play / Pause [space]">⏸︎</button>
-        <button id="btn-slower" title="Slower [↓]">−</button>
-        <button id="btn-faster" title="Faster [↑]">+</button>
-        <button id="btn-restart" title="Restart – same entropy [r]">↻</button>
-        <button id="btn-reset" title="Reset – new entropy [shift+r]">↺</button>
-        <button id="btn-texture" title="Cycle texture [t]">T</button>
-        <button id="btn-settings" title="Settings">⚙︎</button>
+        <div class="speed-control">
+          <span class="speed-label">speed</span>
+          <div class="speed-row">
+            <button id="btn-slower" title="Slower [↓/−]">−</button>
+            <span id="speed-display" class="speed-display"></span>
+            <button id="btn-faster" title="Faster [↑/+]">+</button>
+          </div>
+        </div>
+        <div class="toolbar-gap"></div>
+        <div class="toolbar-stats">
+          <div>gen <span id="toolbar-gen">-2</span></div>
+          <div>active <span id="toolbar-active">0</span></div>
+        </div>
+        <button id="btn-reset" title="Reload [shift+r]">↻</button>
         <button id="btn-fullscreen" title="Fullscreen [f]">⛶</button>
+        <button id="btn-menu" title="Menu" aria-expanded="false" aria-haspopup="true">☰</button>
       </div>
+    </div>
+    <div id="menu-popup" class="menu-popup" role="menu">
+      <button id="menu-install" role="menuitem" style="display:none">Add to home screen</button>
+      <button id="menu-replay" role="menuitem">Replay universe <span class="shortcut">[r]</span></button>
+      <button id="menu-texture" role="menuitem">Change texture <span class="shortcut">[t]/[1-8]</span></button>
+      <button id="menu-status" role="menuitem">Show status <span class="shortcut">[s]</span></button>
+      <button id="menu-settings" role="menuitem">Settings</button>
     </div>
     <div id="settings-drawer" class="settings-drawer">
       <div class="settings-header">
@@ -319,103 +400,15 @@
       <label>Oscillator hue shift <input type="range" id="range-hue-shift" min="0" max="10" step="0.1"> <span id="val-hue-shift"></span></label>
       <label>Starting cell size <input type="range" id="range-cell-size" min="1" max="20" step="1"> <span id="val-cell-size"></span></label>
       <label>Alive % <input type="range" id="range-alive" min="0" max="1" step="0.01"> <span id="val-alive"></span></label>
-      <label class="settings-checkbox"><input type="checkbox" id="chk-status" checked> Show status</label>
       <div class="settings-footer">
-        <button id="btn-shortcuts" class="settings-link" title="Keyboard shortcuts [?]">Keyboard shortcuts</button>
         <button id="btn-defaults" class="settings-link" title="Reset to defaults">Reset to defaults</button>
       </div>
     </div>
     <div id="texture-desc"></div>
-    <div id="fps"></div>
-    <div id="gen"></div>
-    <div id="active"></div>
-    <div id="help-container" class="hidden" onclick="toggleHelp()">
-      <div id="help">
-        <h1> WebGL2 Conway's Game of Life</h1>
-        <a href="https://www.linkedin.com/in/joe-lynch-aa931b58" target="_blank">Joe Lynch</a><br>
-        <a href="https://github.com/joeblynch/webgl2-game-of-life" target="_blank">GitHub</a>
-
-        <table>
-          <tbody>
-            <tr>
-              <td>[double click] or [f]</td>
-              <td>toggle fullscreen (recommended)</td>
-            </tr>
-            <tr>
-              <td>[space]</td>
-              <td>pause / resume</td>
-            </tr>
-            <tr>
-              <td>[down]</td>
-              <td>decrease speed</td>
-            </tr>
-            <tr>
-              <td>[up]</td>
-              <td>increase speed</td>
-            </tr>
-            <tr>
-              <td>[left]</td>
-              <td>decrease dead cell brightness</td>
-            </tr>
-            <tr>
-              <td>[right]</td>
-              <td>increase dead cell brightness</td>
-            </tr>
-            <tr>
-              <td>[shift]+[left]</td>
-              <td>decrease dead cell saturation</td>
-            </tr>
-            <tr>
-              <td>[shift]+[right]</td>
-              <td>increase dead cell saturation</td>
-            </tr>
-            <tr>
-              <td>[ctrl]+[left]</td>
-              <td>decrease alive cell brightness</td>
-            </tr>
-            <tr>
-              <td>[ctrl]+[right]</td>
-              <td>increase alive cell brightness</td>
-            </tr>
-            <tr>
-              <td>[ctrl]+[shift]+[left]</td>
-              <td>decrease alive cell saturation</td>
-            </tr>
-            <tr>
-              <td>[shift]+[shift]+[right]</td>
-              <td>increase alive cell saturation</td>
-            </tr>
-            <tr>
-              <td>[shift]+[-]</td>
-              <td>decrease cell size (reset universe)</td>
-            </tr>
-            <tr>
-              <td>[shift]+[+]</td>
-              <td>increase cell size (reset universe)</td>
-            </tr>
-            <tr>
-              <td>[h] or [?]</td>
-              <td>toggle help</td>
-            </tr>
-            <tr>
-              <td>[r]</td>
-              <td>restart universe (same entropy)</td>
-            </tr>
-            <tr>
-              <td>[shift]+[r]</td>
-              <td>reset universe (new entropy)</td>
-            </tr>
-            <tr>
-              <td>[t]</td>
-              <td>toggle rendered texture</td>
-            </tr>
-            <tr>
-              <td>[s]</td>
-              <td>toggle status</td>
-            </tr>
-          </tbody>
-        </table>
-    </div>
+    <div id="status-overlay">
+      <div>fps <span id="fps">0</span></div>
+      <div>gen <span id="gen">0</span></div>
+      <div>active <span id="active">0</span></div>
     </div>
     <script src="lib/picogl.min.js"></script>
     <script src="main.js"></script>

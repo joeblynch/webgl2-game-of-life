@@ -2,6 +2,7 @@ const ADJ_STEP = 0.005;
 
 const _toolbarEl = document.getElementById('toolbar');
 const _settingsDrawerEl = document.getElementById('settings-drawer');
+const _menuEl = document.getElementById('menu-popup');
 const _btnPlay = document.getElementById('btn-play');
 
 let _uiHideDelay;
@@ -80,8 +81,26 @@ function showToolbar() {
 
 function hideToolbar() {
   _toolbarEl.classList.remove('visible');
+  closeMenu();
   closeSettings();
   clearAutoHide();
+}
+
+function openMenu() {
+  syncMenuStatus();
+  _menuEl.classList.add('visible');
+  document.getElementById('btn-menu').setAttribute('aria-expanded', 'true');
+  clearAutoHide();
+}
+
+function closeMenu() {
+  _menuEl.classList.remove('visible');
+  document.getElementById('btn-menu').setAttribute('aria-expanded', 'false');
+  resetAutoHide();
+}
+
+function isMenuOpen() {
+  return _menuEl.classList.contains('visible');
 }
 
 function toggleToolbar() {
@@ -94,7 +113,7 @@ function toggleToolbar() {
 
 function resetAutoHide() {
   clearAutoHide();
-  if (_uiHideDelay > 0 && !isSettingsOpen() && !_cursorOverUI) {
+  if (_uiHideDelay > 0 && !isSettingsOpen() && !isMenuOpen() && !_cursorOverUI) {
     _autoHideTimer = setTimeout(hideToolbar, _uiHideDelay);
   }
 }
@@ -123,8 +142,6 @@ function openSettings() {
   document.getElementById('val-cell-size').innerText = _cellSize;
   document.getElementById('range-alive').value = _cellAliveProbability;
   document.getElementById('val-alive').innerText = Math.round(_cellAliveProbability * 100) + '%';
-
-  document.getElementById('chk-status').checked = !document.body.classList.contains('hide-status');
 
   _settingsDrawerEl.classList.add('visible');
   clearAutoHide();
@@ -160,14 +177,16 @@ function toggleFullscreen() {
   }
 }
 
-function toggleHelp() {
-  const el = document.getElementById('help-container');
-  el.classList.toggle('hidden');
+function toggleStatus() {
+  document.body.classList.toggle('hide-status');
+  syncMenuStatus();
 }
 
-function toggleStatus() {
-  const hidden = document.body.classList.toggle('hide-status');
-  document.getElementById('chk-status').checked = !hidden;
+function syncMenuStatus() {
+  const hidden = document.body.classList.contains('hide-status');
+  document.getElementById('menu-status').textContent = hidden
+    ? 'Show status [s]'
+    : 'Hide status [s]';
 }
 
 // ─── Keyboard handler (moved from main.js) ───
@@ -359,8 +378,6 @@ let _pinchLastCenterX = 0, _pinchLastCenterY = 0;
 let _touchStartX = 0, _touchStartY = 0;
 let _touchLastX = 0, _touchLastY = 0;
 let _touchLastTime = 0;
-let _momentumVX = 0, _momentumVY = 0;
-let _momentumActive = false;
 
 _canvasEl.addEventListener('touchstart', (e) => {
   _momentumActive = false;
@@ -496,44 +513,38 @@ const _btnFaster = document.getElementById('btn-faster');
 _btnSlower.addEventListener('mousedown', (e) => {
   e.stopPropagation();
   _speedDownPressedAt = performance.now();
-  resetAutoHide();
+  clearAutoHide();
 });
 _btnSlower.addEventListener('mouseup', () => {
   if (_speedDownPressedAt !== null) {
-    if (performance.now() - _speedDownPressedAt <= INPUT_HOLD_DELAY) {
-      speedClick(-1);
-    } else {
-      _targetFPS = Math.max(1, Math.round(_targetFPS));
-      updateConfig();
-    }
+    if (performance.now() - _speedDownPressedAt <= INPUT_HOLD_DELAY) speedClick(-1);
+    else { _targetFPS = Math.max(1, Math.round(_targetFPS)); updateConfig(); }
   }
   _speedDownPressedAt = null;
+  resetAutoHide();
 });
-_btnSlower.addEventListener('mouseleave', () => { if (_speedDownPressedAt) { _targetFPS = Math.max(1, Math.round(_targetFPS)); updateConfig(); } _speedDownPressedAt = null; });
+_btnSlower.addEventListener('mouseleave', () => { if (_speedDownPressedAt) { _targetFPS = Math.max(1, Math.round(_targetFPS)); updateConfig(); } _speedDownPressedAt = null; resetAutoHide(); });
 
 _btnSlower.addEventListener('touchstart', (e) => {
   e.stopPropagation();
   e.preventDefault();
   _speedDownPressedAt = performance.now();
-  resetAutoHide();
+  clearAutoHide();
 });
 _btnSlower.addEventListener('touchend', (e) => {
   e.preventDefault();
   if (_speedDownPressedAt !== null) {
-    if (performance.now() - _speedDownPressedAt <= INPUT_HOLD_DELAY) {
-      speedClick(-1);
-    } else {
-      _targetFPS = Math.max(1, Math.round(_targetFPS));
-      updateConfig();
-    }
+    if (performance.now() - _speedDownPressedAt <= INPUT_HOLD_DELAY) speedClick(-1);
+    else { _targetFPS = Math.max(1, Math.round(_targetFPS)); updateConfig(); }
   }
   _speedDownPressedAt = null;
+  resetAutoHide();
 });
 
 _btnFaster.addEventListener('mousedown', (e) => {
   e.stopPropagation();
   _speedUpPressedAt = performance.now();
-  resetAutoHide();
+  clearAutoHide();
 });
 _btnFaster.addEventListener('mouseup', () => {
   if (_speedUpPressedAt !== null) {
@@ -541,14 +552,15 @@ _btnFaster.addEventListener('mouseup', () => {
     else { _targetFPS = Math.max(1, Math.round(_targetFPS)); updateConfig(); }
   }
   _speedUpPressedAt = null;
+  resetAutoHide();
 });
-_btnFaster.addEventListener('mouseleave', () => { if (_speedUpPressedAt) { _targetFPS = Math.max(1, Math.round(_targetFPS)); updateConfig(); } _speedUpPressedAt = null; });
+_btnFaster.addEventListener('mouseleave', () => { if (_speedUpPressedAt) { _targetFPS = Math.max(1, Math.round(_targetFPS)); updateConfig(); } _speedUpPressedAt = null; resetAutoHide(); });
 
 _btnFaster.addEventListener('touchstart', (e) => {
   e.stopPropagation();
   e.preventDefault();
   _speedUpPressedAt = performance.now();
-  resetAutoHide();
+  clearAutoHide();
 });
 _btnFaster.addEventListener('touchend', (e) => {
   e.preventDefault();
@@ -557,37 +569,14 @@ _btnFaster.addEventListener('touchend', (e) => {
     else { _targetFPS = Math.max(1, Math.round(_targetFPS)); updateConfig(); }
   }
   _speedUpPressedAt = null;
-});
-
-document.getElementById('btn-restart').addEventListener('click', (e) => {
-  e.stopPropagation();
-  _generation = START_GENERATION;
-  _endedGeneration = -1;
   resetAutoHide();
 });
 
 document.getElementById('btn-reset').addEventListener('click', (e) => {
   e.stopPropagation();
   reset();
-  resetAutoHide();
-});
-
-document.getElementById('btn-texture').addEventListener('click', (e) => {
-  e.stopPropagation();
-  _textureMode = (_textureMode + 1) % TEXTURE_MODES.length;
-  _textureDescEl.innerText = TEXTURE_DESC[_textureMode];
-  updateConfig();
-  draw();
-  resetAutoHide();
-});
-
-document.getElementById('btn-settings').addEventListener('click', (e) => {
-  e.stopPropagation();
-  if (isSettingsOpen()) {
-    closeSettings();
-  } else {
-    openSettings();
-  }
+  _running = true;
+  syncPlayButton();
   resetAutoHide();
 });
 
@@ -597,10 +586,78 @@ document.getElementById('btn-fullscreen').addEventListener('click', (e) => {
   resetAutoHide();
 });
 
-document.getElementById('btn-shortcuts').addEventListener('click', (e) => {
+// ─── Hamburger menu ───
+
+document.getElementById('btn-menu').addEventListener('click', (e) => {
   e.stopPropagation();
-  toggleHelp();
-  resetAutoHide();
+  if (isMenuOpen()) {
+    closeMenu();
+  } else {
+    openMenu();
+  }
+});
+
+document.getElementById('menu-replay').addEventListener('click', (e) => {
+  e.stopPropagation();
+  _generation = START_GENERATION;
+  _xEdgeDist = START_GENERATION + 1;
+  _yEdgeDist = START_GENERATION + 1;
+  _endedGeneration = -1;
+  closeMenu();
+});
+
+document.getElementById('menu-texture').addEventListener('click', (e) => {
+  e.stopPropagation();
+  _textureMode = (_textureMode + 1) % TEXTURE_MODES.length;
+  _textureDescEl.innerText = TEXTURE_DESC[_textureMode];
+  updateConfig();
+  draw();
+});
+
+document.getElementById('menu-status').addEventListener('click', (e) => {
+  e.stopPropagation();
+  toggleStatus();
+  closeMenu();
+});
+
+document.getElementById('menu-settings').addEventListener('click', (e) => {
+  e.stopPropagation();
+  closeMenu();
+  openSettings();
+});
+
+// close menu on click outside
+document.addEventListener('click', () => {
+  if (isMenuOpen()) closeMenu();
+});
+
+// close menu on Escape
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (isMenuOpen()) { closeMenu(); e.preventDefault(); }
+    else if (isSettingsOpen()) { closeSettings(); e.preventDefault(); }
+  }
+});
+
+// ─── PWA install prompt ───
+
+let _deferredInstallPrompt = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  _deferredInstallPrompt = e;
+  document.getElementById('menu-install').style.display = '';
+});
+
+document.getElementById('menu-install').addEventListener('click', async (e) => {
+  e.stopPropagation();
+  if (_deferredInstallPrompt) {
+    _deferredInstallPrompt.prompt();
+    await _deferredInstallPrompt.userChoice;
+    _deferredInstallPrompt = null;
+    document.getElementById('menu-install').style.display = 'none';
+  }
+  closeMenu();
 });
 
 document.getElementById('btn-close-settings').addEventListener('click', (e) => {
@@ -638,12 +695,6 @@ document.getElementById('btn-defaults').addEventListener('click', (e) => {
   }
 
   openSettings();
-});
-
-document.getElementById('chk-status').addEventListener('change', (e) => {
-  e.stopPropagation();
-  document.body.classList.toggle('hide-status', !e.target.checked);
-  resetAutoHide();
 });
 
 // ─── Settings drawer slider handlers ───
@@ -705,10 +756,13 @@ bindSlider('alive',
 // Stop clicks on toolbar/settings drawer from toggling toolbar
 _toolbarEl.addEventListener('click', (e) => { e.stopPropagation(); });
 _settingsDrawerEl.addEventListener('click', (e) => { e.stopPropagation(); });
+_menuEl.addEventListener('click', (e) => { e.stopPropagation(); });
 
-// Pause auto-hide while cursor is over toolbar
+// Pause auto-hide while cursor is over toolbar or menu
 _toolbarEl.addEventListener('mouseenter', () => { _cursorOverUI = true; clearAutoHide(); });
 _toolbarEl.addEventListener('mouseleave', () => { _cursorOverUI = false; resetAutoHide(); });
+_menuEl.addEventListener('mouseenter', () => { _cursorOverUI = true; clearAutoHide(); });
+_menuEl.addEventListener('mouseleave', () => { _cursorOverUI = false; resetAutoHide(); });
 
 // ─── Init ───
 
@@ -717,14 +771,13 @@ _toolbarEl.addEventListener('mouseleave', () => { _cursorOverUI = false; resetAu
   const uiHide = typeof options.uiHide === 'number' ? options.uiHide : 3;
   _uiHideDelay = uiHide < 0 ? -1 : uiHide * 1000;
 
-  const isPWA = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
-  if (isPWA) {
-    document.body.classList.add('hide-status');
-  }
+  // default status to hidden
+  document.body.classList.add('hide-status');
 
   if (!document.fullscreenEnabled && !document.webkitFullscreenEnabled) {
     document.getElementById('btn-fullscreen').style.display = 'none';
   }
 
+  syncMenuStatus();
   resetAutoHide();
 })();
