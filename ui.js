@@ -17,7 +17,7 @@ function updateConfig() {
   options.liOn = _lightness_on.toPrecision(3);
   options.liOff = _lightness_off.toPrecision(3);
   options.texture = _textureMode;
-  if (_uiHideDelay !== 5000) {
+  if (_uiHideDelay !== 3000) {
     options.uiHide = _uiHideDelay / 1000;
   }
 
@@ -71,7 +71,7 @@ function toggleToolbar() {
 
 function resetAutoHide() {
   clearAutoHide();
-  if (_uiHideDelay > 0) {
+  if (_uiHideDelay > 0 && !isSettingsOpen()) {
     _autoHideTimer = setTimeout(hideToolbar, _uiHideDelay);
   }
 }
@@ -102,11 +102,12 @@ function openSettings() {
   document.getElementById('chk-status').checked = !document.body.classList.contains('hide-status');
 
   _settingsDrawerEl.classList.add('visible');
-  resetAutoHide();
+  clearAutoHide();
 }
 
 function closeSettings() {
   _settingsDrawerEl.classList.remove('visible');
+  resetAutoHide();
 }
 
 function isSettingsOpen() {
@@ -447,7 +448,7 @@ _settingsDrawerEl.addEventListener('click', (e) => { e.stopPropagation(); });
 
 (function initUI() {
   const options = parseHash();
-  const uiHide = typeof options.uiHide === 'number' ? options.uiHide : 5;
+  const uiHide = typeof options.uiHide === 'number' ? options.uiHide : 3;
   _uiHideDelay = uiHide < 0 ? -1 : uiHide * 1000;
 
   const isPWA = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
@@ -458,4 +459,6 @@ _settingsDrawerEl.addEventListener('click', (e) => { e.stopPropagation(); });
   if (!document.fullscreenEnabled && !document.webkitFullscreenEnabled) {
     document.getElementById('btn-fullscreen').style.display = 'none';
   }
+
+  resetAutoHide();
 })();
