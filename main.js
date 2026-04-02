@@ -1,7 +1,7 @@
 // NOTE: This code is ugly because it's uninteresting, so as little time was spent on it as possible.
 //       The magic happens in gol-step.frag.
 
-const DEFAULT_CELL_SIZE = Math.floor(3 * window.devicePixelRatio);
+const DEFAULT_CELL_SIZE = Math.floor(2 * window.devicePixelRatio);
 
 const MAX_ENTROPY = 65536;
 const CELL_STATE_BYTES = 4;
@@ -57,7 +57,7 @@ const _textures = {};
 const options = parseHash();
 let _cellAliveProbability = options.alive >= 0 && options.alive <= 1 ? options.alive : 0.5;
 let _cellSize = options.size || DEFAULT_CELL_SIZE;
-let _speed = typeof options.speed === 'number' ? options.speed : -5;
+let _speed = typeof options.speed === 'number' ? options.speed : -4;
 let _saturation_on = typeof options.satOn === 'number' ? options.satOn : 0.98;
 let _saturation_off = typeof options.satOff === 'number' ? options.satOff : 0.4;
 let _lightness_on = typeof options.liOn === 'number' ? options.liOn : 0.76;
