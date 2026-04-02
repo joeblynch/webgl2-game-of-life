@@ -357,6 +357,7 @@ _canvasEl.addEventListener('wheel', (e) => {
     _panX += e.deltaX * dpr * _zoom;
     _panY -= e.deltaY * dpr * _zoom;
   }
+
 }, { passive: false });
 
 
@@ -389,6 +390,7 @@ document.addEventListener('mousemove', (e) => {
     const dpr = window.devicePixelRatio;
     _panX = _dragStartPanX - dx * dpr * _zoom;
     _panY = _dragStartPanY + dy * dpr * _zoom;
+  
   }
 });
 
@@ -464,6 +466,7 @@ _canvasEl.addEventListener('touchmove', (e) => {
     _pinchLastDist = dist;
     _pinchLastCenterX = centerX;
     _pinchLastCenterY = centerY;
+  
   } else if (e.touches.length === 1) {
     const dx = e.touches[0].clientX - _touchStartX;
     const dy = e.touches[0].clientY - _touchStartY;
@@ -477,6 +480,7 @@ _canvasEl.addEventListener('touchmove', (e) => {
       const moveY = e.touches[0].clientY - _touchLastY;
       _panX -= moveX * dpr * _zoom;
       _panY += moveY * dpr * _zoom;
+    
 
       const now = performance.now();
       const dt = now - _touchLastTime;
@@ -609,6 +613,7 @@ document.getElementById('btn-defaults').addEventListener('click', (e) => {
   _zoom = 1 / _cellSize;
   _panX = _universeWidth / 2;
   _panY = _universeHeight / 2;
+
   updateConfig();
 
   if (needsRestart) {

@@ -96,6 +96,7 @@ let _generation = START_GENERATION;
 let _xEdgeDist = START_GENERATION + 1;
 let _yEdgeDist = START_GENERATION + 1;
 let _maxGenerations = -1;
+let _lastDrawnPanX, _lastDrawnPanY, _lastDrawnZoom;
 let _entropy;
 let _zoom;
 let _maxZoom;
@@ -126,13 +127,13 @@ const _textureDescEl = document.getElementById('texture-desc');
     }
 
     frame++;
+    let stepped = false;
     if (_speed < 0) {
       if (frame % -_speed === 0) {
         _genEl.innerText = _generation;
         step();
         _fps++;
-      } else {
-        return;
+        stepped = true;
       }
     } else {
       // start at -1 so that we always do an extra step. otherwise 1 step for speed -1 and speed 0.
@@ -142,9 +143,17 @@ const _textureDescEl = document.getElementById('texture-desc');
       }
 
       _genEl.innerText = _generation - 1;
+      stepped = true;
     }
 
     applyMomentum();
+    const viewportChanged = _panX !== _lastDrawnPanX || _panY !== _lastDrawnPanY || _zoom !== _lastDrawnZoom;
+    if (!stepped && !viewportChanged) {
+      return;
+    }
+    _lastDrawnPanX = _panX;
+    _lastDrawnPanY = _panY;
+    _lastDrawnZoom = _zoom;
     draw();
 
     if (now - 1000 >= _lastFPSUpdate) {
