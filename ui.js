@@ -6,6 +6,7 @@ const _btnPlay = document.getElementById('btn-play');
 
 let _uiHideDelay;
 let _autoHideTimer = null;
+let _cursorOverUI = false;
 
 function updateConfig() {
   const options = parseHash();
@@ -71,7 +72,7 @@ function toggleToolbar() {
 
 function resetAutoHide() {
   clearAutoHide();
-  if (_uiHideDelay > 0 && !isSettingsOpen()) {
+  if (_uiHideDelay > 0 && !isSettingsOpen() && !_cursorOverUI) {
     _autoHideTimer = setTimeout(hideToolbar, _uiHideDelay);
   }
 }
@@ -443,6 +444,10 @@ bindSlider('alive',
 // Stop clicks on toolbar/settings drawer from toggling toolbar
 _toolbarEl.addEventListener('click', (e) => { e.stopPropagation(); });
 _settingsDrawerEl.addEventListener('click', (e) => { e.stopPropagation(); });
+
+// Pause auto-hide while cursor is over toolbar
+_toolbarEl.addEventListener('mouseenter', () => { _cursorOverUI = true; clearAutoHide(); });
+_toolbarEl.addEventListener('mouseleave', () => { _cursorOverUI = false; resetAutoHide(); });
 
 // ─── Init ───
 
