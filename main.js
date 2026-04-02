@@ -80,6 +80,7 @@ let _activeFramebuffer;
 let _generation = START_GENERATION;
 let _maxGenerations = -1;
 let _entropy;
+let _wakeLock = null;
 let _running = true;
 let _endedGeneration = -1;
 let _lastFPSUpdate = 0;
@@ -92,6 +93,7 @@ const _textureDescEl = document.getElementById('texture-desc');
 
 (async function main() {
   await init();
+  requestWakeLock();
 
   let frame = 0;
 
@@ -538,6 +540,22 @@ function cleanup() {
   _vao.delete();
   _quad.delete();
 }
+
+async function requestWakeLock() {
+  if (!('wakeLock' in navigator)) return;
+  try {
+    _wakeLock = await navigator.wakeLock.request('screen');
+    _wakeLock.addEventListener('release', () => {
+      _wakeLock = null;
+    });
+  } catch (e) {
+    console.log('wake lock denied:', e.message);
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') requestWakeLock();
+});
 
 function generateRandomState(width, height) {
   const length = width * height * CELL_STATE_BYTES;
