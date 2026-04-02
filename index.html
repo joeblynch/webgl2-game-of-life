@@ -3,7 +3,7 @@
   <head>
     <title>Conway's Game of Life</title>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#000000">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -19,6 +19,11 @@
         background-color: #000;
         overflow: hidden;
         font-family: Consolas, Menlo, monospace;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+        touch-action: none;
+        overscroll-behavior: none;
       }
 
       body.hide-status {
@@ -96,6 +101,8 @@
         padding: 16px;
         color: rgb(255, 255, 255, 0.94);
         font-size: 10pt;
+        -webkit-user-select: text;
+        user-select: text;
       }
 
       #help h1 {
@@ -166,6 +173,7 @@
         font-family: Consolas, Menlo, monospace;
         font-size: 12px;
         padding: 16px;
+        touch-action: manipulation;
         transform: translateY(100%);
         opacity: 0;
         transition: transform 0.3s ease, opacity 0.3s ease;
