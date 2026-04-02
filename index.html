@@ -236,20 +236,30 @@
         opacity: 0;
       }
 
+      @media (display-mode: standalone) {
+        /* keep canvas fullscreen in PWA mode, so safe area doesn't offset it */
+        #c {
+          top: 0;
+          left: 0;
+          transform: none;
+        }
+      }
+
       @media (display-mode: standalone) and (orientation: landscape),
              (pointer: coarse) and (orientation: landscape) {
         #c {
           width: 100vh;
           height: 100vw;
           overflow: hidden;
-          position: absolute;
         }
+
         #c.landscape-left {
           transform: rotate(-90deg);
           transform-origin: left top;
           top: 100%;
           left: 0;
         }
+
         #c.landscape-right {
           transform: rotate(90deg);
           transform-origin: left top;
