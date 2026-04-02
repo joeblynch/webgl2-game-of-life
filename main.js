@@ -133,7 +133,7 @@ const _textureDescEl = document.getElementById('texture-desc');
     if (now - 250 >= _lastActiveUpdate && _generation > 0 && _endedGeneration < 0) {
       const active = getActiveCells();
       _activeEl.innerText = active;
-      if (!active) {
+      if (!active && _generation + 2 > Math.max(_stateWidth >> 1, _stateHeight >> 1)) {
         if (_generation > _maxGenerations) {
           _maxGenerations = _generation;
           console.log('max generations: ', _generation, _entropy);
