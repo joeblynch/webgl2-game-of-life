@@ -63,6 +63,9 @@ let _saturation_off = typeof options.satOff === 'number' ? options.satOff : 0.4;
 let _lightness_on = typeof options.liOn === 'number' ? options.liOn : 0.76;
 let _lightness_off = typeof options.liOff === 'number' ? options.liOff : 0;
 let _textureMode = options.texture >= 0 && options.texture < TEXTURE_MODES.length ? options.texture : 0;
+let _gridWidth = options.width > 0 ? Math.floor(options.width) : 0;
+let _gridHeight = options.height > 0 ? Math.floor(options.height) : 0;
+let _ratio = options.ratio > 0 ? options.ratio : 0;
 let _activeCounts;
 let _offscreen;
 let _quad;
@@ -309,8 +312,35 @@ async function init(reInit = false) {
   const { width: displayWidth, height: displayHeight } = screen;
   const width = displayWidth * window.devicePixelRatio;
   const height = displayHeight * window.devicePixelRatio;
-  _stateWidth = Math.floor(width / _cellSize);
-  _stateHeight = Math.floor(height / _cellSize);
+  if (_gridWidth || _gridHeight) {
+    if (_gridWidth && _gridHeight) {
+      _stateWidth = _gridWidth;
+      _stateHeight = _gridHeight;
+    } else if (_gridWidth) {
+      _stateWidth = _gridWidth;
+      const cellSz = Math.floor(width / _stateWidth);
+      _stateHeight = _ratio > 0
+        ? Math.floor(_stateWidth / _ratio)
+        : Math.floor(height / cellSz);
+    } else {
+      _stateHeight = _gridHeight;
+      const cellSz = Math.floor(height / _stateHeight);
+      _stateWidth = _ratio > 0
+        ? Math.floor(_stateHeight * _ratio)
+        : Math.floor(width / cellSz);
+    }
+    _cellSize = Math.floor(Math.min(width / _stateWidth, height / _stateHeight));
+  } else {
+    _stateWidth = Math.floor(width / _cellSize);
+    _stateHeight = Math.floor(height / _cellSize);
+    if (_ratio > 0) {
+      if (_ratio > _stateWidth / _stateHeight) {
+        _stateHeight = Math.floor(_stateWidth / _ratio);
+      } else {
+        _stateWidth = Math.floor(_stateHeight * _ratio);
+      }
+    }
+  }
 
   console.log(width, height, _stateWidth, _stateHeight);
 
@@ -322,12 +352,12 @@ async function init(reInit = false) {
       return;
     }
 
-    canvasEl.width = width;
-    canvasEl.height = height;
-    canvasEl.style.width = `${displayWidth}px`;
-    canvasEl.style.height = `${displayHeight}px`;
-    _canvasWidth = width;
-    _canvasHeight = height;
+    _canvasWidth = _stateWidth * _cellSize;
+    _canvasHeight = _stateHeight * _cellSize;
+    canvasEl.width = _canvasWidth;
+    canvasEl.height = _canvasHeight;
+    canvasEl.style.width = `${_canvasWidth / window.devicePixelRatio}px`;
+    canvasEl.style.height = `${_canvasHeight / window.devicePixelRatio}px`;
 
     _textureDescEl.innerText = TEXTURE_DESC[_textureMode];
 

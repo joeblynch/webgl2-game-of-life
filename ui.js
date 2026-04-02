@@ -31,7 +31,7 @@ updateLandscapeClass();
 function updateConfig() {
   const options = parseHash();
   options.alive = _cellAliveProbability;
-  options.size = _cellSize;
+  if (!_gridWidth && !_gridHeight) options.size = _cellSize;
   options.speed = _speed;
   options.satOn = _saturation_on.toPrecision(3);
   options.satOff = _saturation_off.toPrecision(3);
@@ -53,7 +53,7 @@ function saveConfig() {
   try {
     localStorage.setItem('gol-config', JSON.stringify({
       alive: _cellAliveProbability,
-      size: _cellSize,
+      ...(!_gridWidth && !_gridHeight && { size: _cellSize }),
       speed: _speed,
       satOn: parseFloat(_saturation_on.toPrecision(3)),
       satOff: parseFloat(_saturation_off.toPrecision(3)),
