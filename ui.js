@@ -32,7 +32,7 @@ function updateConfig() {
   const options = parseHash();
   options.alive = _cellAliveProbability;
   if (!_gridWidth && !_gridHeight) options.size = _cellSize;
-  options.speed = _speed;
+  options.fps = _targetFPS;
   options.satOn = _saturation_on.toPrecision(3);
   options.satOff = _saturation_off.toPrecision(3);
   options.liOn = _lightness_on.toPrecision(3);
@@ -55,7 +55,7 @@ function saveConfig() {
     localStorage.setItem('gol-config', JSON.stringify({
       alive: _cellAliveProbability,
       ...(!_gridWidth && !_gridHeight && { size: _cellSize }),
-      speed: _speed,
+      fps: _targetFPS,
       satOn: parseFloat(_saturation_on.toPrecision(3)),
       satOff: parseFloat(_saturation_off.toPrecision(3)),
       liOn: parseFloat(_lightness_on.toPrecision(3)),
@@ -178,84 +178,30 @@ document.addEventListener('keydown', (e) => {
       _running = !_running;
       syncPlayButton();
       break;
-    case 37:  // LEFT
-      e.preventDefault();
-      if (e.shiftKey) {
-        if (e.ctrlKey) {
-          if (_saturation_on >= ADJ_STEP) {
-            _saturation_on -= ADJ_STEP;
-          } else {
-            _saturation_on = 0;
-          }
-        } else {
-          if (_saturation_off >= ADJ_STEP) {
-            _saturation_off -= ADJ_STEP;
-          } else {
-            _saturation_off = 0;
-          }
-        }
-      } else {
-        if (e.ctrlKey) {
-          if (_lightness_on >= ADJ_STEP) {
-            _lightness_on -= ADJ_STEP;
-          } else {
-            _lightness_on = 0;
-          }
-        } else {
-          if (_lightness_off >= ADJ_STEP) {
-            _lightness_off -= ADJ_STEP;
-          } else {
-            _lightness_off = 0;
-          }
-        }
-      }
-
-      updateConfig();
-
-      break;
     case 38:  // UP
-      _speed++;
-      updateConfig();
-      e.preventDefault();
-      break;
-    case 39:  // RIGHT
-      e.preventDefault();
-      if (e.shiftKey) {
-        if (e.ctrlKey) {
-          if (_saturation_on < 1 - ADJ_STEP) {
-            _saturation_on += ADJ_STEP;
-          } else {
-            _saturation_on = 1;
-          }
-        } else {
-          if (_saturation_off < 1 - ADJ_STEP) {
-            _saturation_off += ADJ_STEP;
-          } else {
-            _saturation_off = 1;
-          }
-        }
-      } else {
-        if (e.ctrlKey) {
-          if (_lightness_on < 1 - ADJ_STEP) {
-            _lightness_on += ADJ_STEP;
-          } else {
-            _lightness_on = 1;
-          }
-        } else {
-          if (_lightness_off < 1 - ADJ_STEP) {
-            _lightness_off += ADJ_STEP;
-          } else {
-            _lightness_off = 1;
-          }
-        }
+    case 61:  // + (FF)
+    case 187: // +
+      if (e.shiftKey && (e.which === 61 || e.which === 187)) {
+        _cellSize++;
+        updateConfig();
+        init(true);
+        reset();
+      } else if (!e.repeat && _speedUpPressedAt === null) {
+        _speedUpPressedAt = performance.now();
       }
-
-      updateConfig();
-
+      e.preventDefault();
       break;
     case 40:  // DOWN
-      _speed--;
-      updateConfig();
+    case 173: // - (FF)
+    case 189: // -
+      if (e.shiftKey && (e.which === 173 || e.which === 189) && _cellSize > 1) {
+        _cellSize--;
+        updateConfig();
+        init(true);
+        reset();
+      } else if (!e.repeat && _speedDownPressedAt === null) {
+        _speedDownPressedAt = performance.now();
+      }
       e.preventDefault();
       break;
     case 49:  // 1-8
@@ -273,14 +219,13 @@ document.addEventListener('keydown', (e) => {
     case 70:  // f
       toggleFullscreen();
       break;
-    case 72:  // h
-      toggleHelp();
-      break;
     case 82:  // r
       if (e.shiftKey) {
         reset();
       } else {
         _generation = START_GENERATION;
+        _xEdgeDist = START_GENERATION + 1;
+        _yEdgeDist = START_GENERATION + 1;
         _endedGeneration = -1;
       }
       break;
@@ -293,31 +238,39 @@ document.addEventListener('keydown', (e) => {
     case 83: // s
       toggleStatus();
       break;
-    case 61: // + (win on FF?)
-    case 187: // +
-      if (e.shiftKey) {
-        _cellSize++;
-        updateConfig();
-        init(true);
-        reset();
-      }
-      break;
-    case 173: // + (win on FF?)
-    case 189: // -
-      if (e.shiftKey && _cellSize > 1) {
-        _cellSize--;
-        updateConfig();
-        init(true);
-        reset();
-      }
-      break;
-    case 191:  // ?
-      if (e.shiftKey) {
-        toggleHelp();
-      }
-      break;
     default:
-      console.log(e.which);
+      break;
+  }
+});
+
+document.addEventListener('keyup', (e) => {
+  switch (e.which) {
+    case 38:  // UP
+    case 61:  // +
+    case 187:
+      if (!e.shiftKey && _speedUpPressedAt !== null) {
+        if (performance.now() - _speedUpPressedAt <= INPUT_HOLD_DELAY) {
+          speedClick(1);
+        } else {
+          _targetFPS = Math.max(1, Math.round(_targetFPS));
+          updateConfig();
+        }
+        _speedUpPressedAt = null;
+      }
+      break;
+    case 40:  // DOWN
+    case 173: // -
+    case 189:
+      if (!e.shiftKey && _speedDownPressedAt !== null) {
+        if (performance.now() - _speedDownPressedAt <= INPUT_HOLD_DELAY) {
+          speedClick(-1);
+        } else {
+          _targetFPS = Math.max(1, Math.round(_targetFPS));
+          updateConfig();
+        }
+        _speedDownPressedAt = null;
+      }
+      break;
   }
 });
 
@@ -531,18 +484,79 @@ document.getElementById('btn-play').addEventListener('click', (e) => {
   resetAutoHide();
 });
 
-document.getElementById('btn-slower').addEventListener('click', (e) => {
-  e.stopPropagation();
-  _speed--;
+function speedClick(direction) {
+  const displayed = Math.round(_targetFPS);
+  _targetFPS = Math.max(1, displayed + direction);
   updateConfig();
+}
+
+const _btnSlower = document.getElementById('btn-slower');
+const _btnFaster = document.getElementById('btn-faster');
+
+_btnSlower.addEventListener('mousedown', (e) => {
+  e.stopPropagation();
+  _speedDownPressedAt = performance.now();
   resetAutoHide();
 });
+_btnSlower.addEventListener('mouseup', () => {
+  if (_speedDownPressedAt !== null) {
+    if (performance.now() - _speedDownPressedAt <= INPUT_HOLD_DELAY) {
+      speedClick(-1);
+    } else {
+      _targetFPS = Math.max(1, Math.round(_targetFPS));
+      updateConfig();
+    }
+  }
+  _speedDownPressedAt = null;
+});
+_btnSlower.addEventListener('mouseleave', () => { if (_speedDownPressedAt) { _targetFPS = Math.max(1, Math.round(_targetFPS)); updateConfig(); } _speedDownPressedAt = null; });
 
-document.getElementById('btn-faster').addEventListener('click', (e) => {
+_btnSlower.addEventListener('touchstart', (e) => {
   e.stopPropagation();
-  _speed++;
-  updateConfig();
+  e.preventDefault();
+  _speedDownPressedAt = performance.now();
   resetAutoHide();
+});
+_btnSlower.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  if (_speedDownPressedAt !== null) {
+    if (performance.now() - _speedDownPressedAt <= INPUT_HOLD_DELAY) {
+      speedClick(-1);
+    } else {
+      _targetFPS = Math.max(1, Math.round(_targetFPS));
+      updateConfig();
+    }
+  }
+  _speedDownPressedAt = null;
+});
+
+_btnFaster.addEventListener('mousedown', (e) => {
+  e.stopPropagation();
+  _speedUpPressedAt = performance.now();
+  resetAutoHide();
+});
+_btnFaster.addEventListener('mouseup', () => {
+  if (_speedUpPressedAt !== null) {
+    if (performance.now() - _speedUpPressedAt <= INPUT_HOLD_DELAY) speedClick(1);
+    else { _targetFPS = Math.max(1, Math.round(_targetFPS)); updateConfig(); }
+  }
+  _speedUpPressedAt = null;
+});
+_btnFaster.addEventListener('mouseleave', () => { if (_speedUpPressedAt) { _targetFPS = Math.max(1, Math.round(_targetFPS)); updateConfig(); } _speedUpPressedAt = null; });
+
+_btnFaster.addEventListener('touchstart', (e) => {
+  e.stopPropagation();
+  e.preventDefault();
+  _speedUpPressedAt = performance.now();
+  resetAutoHide();
+});
+_btnFaster.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  if (_speedUpPressedAt !== null) {
+    if (performance.now() - _speedUpPressedAt <= INPUT_HOLD_DELAY) speedClick(1);
+    else { _targetFPS = Math.max(1, Math.round(_targetFPS)); updateConfig(); }
+  }
+  _speedUpPressedAt = null;
 });
 
 document.getElementById('btn-restart').addEventListener('click', (e) => {
@@ -602,7 +616,7 @@ document.getElementById('btn-defaults').addEventListener('click', (e) => {
 
   _cellAliveProbability = DEFAULT_ALIVE_PROBABILITY;
   _cellSize = DEFAULT_CELL_SIZE;
-  _speed = DEFAULT_SPEED;
+  _targetFPS = DEFAULT_TARGET_FPS;
   _saturation_on = DEFAULT_SATURATION_ON;
   _saturation_off = DEFAULT_SATURATION_OFF;
   _lightness_on = DEFAULT_LIGHTNESS_ON;

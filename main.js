@@ -3,7 +3,7 @@
 
 const DEFAULT_CELL_SIZE = Math.floor(2 * window.devicePixelRatio) + 1;
 const DEFAULT_ALIVE_PROBABILITY = 0.5;
-const DEFAULT_SPEED = -4;
+const DEFAULT_TARGET_FPS = 30;
 const DEFAULT_SATURATION_ON = 0.98;
 const DEFAULT_SATURATION_OFF = 1.0;
 const DEFAULT_LIGHTNESS_ON = 0.76;
@@ -57,6 +57,8 @@ function parseHash() {
 const START_GENERATION = -2;
 
 const FADE_OUT_GENERATION_COUNT = 30;
+const INPUT_HOLD_DELAY = 200;
+const INPUT_HOLD_RAMP = 5000;
 
 let _app;
 const _programs = {};
@@ -65,7 +67,7 @@ const _textures = {};
 const options = parseHash();
 let _cellAliveProbability = options.alive >= 0 && options.alive <= 1 ? options.alive : DEFAULT_ALIVE_PROBABILITY;
 let _cellSize = options.size || DEFAULT_CELL_SIZE;
-let _speed = typeof options.speed === 'number' ? options.speed : DEFAULT_SPEED;
+let _targetFPS = typeof options.fps === 'number' ? options.fps : DEFAULT_TARGET_FPS;
 let _saturation_on = typeof options.satOn === 'number' ? options.satOn : DEFAULT_SATURATION_ON;
 let _saturation_off = typeof options.satOff === 'number' ? options.satOff : DEFAULT_SATURATION_OFF;
 let _lightness_on = typeof options.liOn === 'number' ? options.liOn : DEFAULT_LIGHTNESS_ON;
@@ -107,7 +109,13 @@ let _running = true;
 let _endedGeneration = -1;
 let _lastFPSUpdate = 0;
 let _lastActiveUpdate = 0;
-let _fps = 0;
+let _actualFPS = 0;
+let _stepsThisSecond = 0;
+let _stepBudget = 0;
+let _lastFrameTime = 0;
+let _speedUpPressedAt = null;
+let _speedDownPressedAt = null;
+let _underperformStart = 0;
 const _fpsEl = document.getElementById('fps');
 const _genEl = document.getElementById('gen');
 const _activeEl = document.getElementById('active');
@@ -117,33 +125,53 @@ const _textureDescEl = document.getElementById('texture-desc');
   await init();
   requestWakeLock();
 
-  let frame = 0;
-
   requestAnimationFrame(function render(now) {
     requestAnimationFrame(render);
 
+    const deltaTime = _lastFrameTime ? now - _lastFrameTime : 0;
+    _lastFrameTime = now;
+
+    // process speed hold acceleration (only if one direction pressed, not both)
+    const pressedAt = _speedUpPressedAt ?? _speedDownPressedAt;
+    if (pressedAt !== null && !(_speedUpPressedAt && _speedDownPressedAt)) {
+      const held = now - pressedAt - INPUT_HOLD_DELAY;
+      if (held > 0) {
+        const rampRate = Math.min(1 + (held / INPUT_HOLD_RAMP) * 49, 50);
+        const delta = rampRate * (deltaTime / 1000);
+        if (_speedUpPressedAt) _targetFPS += delta;
+        else _targetFPS = Math.max(1, _targetFPS - delta);
+      }
+    }
+
     if (!_running) {
+      applyMomentum();
+      const viewportChanged = _panX !== _lastDrawnPanX || _panY !== _lastDrawnPanY || _zoom !== _lastDrawnZoom;
+      if (viewportChanged) {
+        _lastDrawnPanX = _panX;
+        _lastDrawnPanY = _panY;
+        _lastDrawnZoom = _zoom;
+        draw();
+      }
       return;
     }
 
-    frame++;
+    // budget-based step scheduling
     let stepped = false;
-    if (_speed < 0) {
-      if (frame % -_speed === 0) {
-        _genEl.innerText = _generation;
+    if (deltaTime > 0 && deltaTime < 500) {  // ignore huge gaps (tab switch)
+      _stepBudget += deltaTime;
+      const stepTime = 1000 / _targetFPS;
+      // cap budget to prevent spiral of death
+      _stepBudget = Math.min(_stepBudget, stepTime * 10);
+      while (_stepBudget >= stepTime) {
         step();
-        _fps++;
+        _stepBudget -= stepTime;
+        _stepsThisSecond++;
         stepped = true;
       }
-    } else {
-      // start at -1 so that we always do an extra step. otherwise 1 step for speed -1 and speed 0.
-      for (let i = -1; i <= _speed; i++) {
-        step();
-        _fps++;
-      }
+    }
 
-      _genEl.innerText = _generation - 1;
-      stepped = true;
+    if (stepped) {
+      _genEl.innerText = _generation;
     }
 
     applyMomentum();
@@ -156,11 +184,24 @@ const _textureDescEl = document.getElementById('texture-desc');
     _lastDrawnZoom = _zoom;
     draw();
 
+    // track actual FPS and auto-downgrade
     if (now - 1000 >= _lastFPSUpdate) {
-      _fpsEl.innerText = _fps;
+      _actualFPS = _stepsThisSecond;
+      _fpsEl.innerText = _stepsThisSecond;
+
+      // auto-downgrade: if actual < target * 0.9 for > 2 seconds
+      if (_stepsThisSecond < _targetFPS * 0.9) {
+        if (_underperformStart === 0) _underperformStart = now;
+        else if (now - _underperformStart > 2000) {
+          _targetFPS = _stepsThisSecond;
+          _underperformStart = 0;
+        }
+      } else {
+        _underperformStart = 0;
+      }
 
       _lastFPSUpdate = now;
-      _fps = 0;
+      _stepsThisSecond = 0;
     }
 
     if (now - 250 >= _lastActiveUpdate && _generation > 0 && _endedGeneration < 0) {
