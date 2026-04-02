@@ -409,6 +409,24 @@ document.getElementById('btn-close-settings').addEventListener('click', (e) => {
   resetAutoHide();
 });
 
+document.getElementById('btn-defaults').addEventListener('click', (e) => {
+  e.stopPropagation();
+  _cellAliveProbability = DEFAULT_ALIVE_PROBABILITY;
+  _cellSize = DEFAULT_CELL_SIZE;
+  _speed = DEFAULT_SPEED;
+  _saturation_on = DEFAULT_SATURATION_ON;
+  _saturation_off = DEFAULT_SATURATION_OFF;
+  _lightness_on = DEFAULT_LIGHTNESS_ON;
+  _lightness_off = DEFAULT_LIGHTNESS_OFF;
+  _hueShift = DEFAULT_HUE_SHIFT;
+  _textureMode = DEFAULT_TEXTURE_MODE;
+  _textureDescEl.innerText = TEXTURE_DESC[_textureMode];
+  updateConfig();
+  init(true);
+  reset();
+  openSettings();
+});
+
 document.getElementById('chk-status').addEventListener('change', (e) => {
   e.stopPropagation();
   document.body.classList.toggle('hide-status', !e.target.checked);

@@ -2,6 +2,14 @@
 //       The magic happens in gol-step.frag.
 
 const DEFAULT_CELL_SIZE = Math.floor(2 * window.devicePixelRatio) + 1;
+const DEFAULT_ALIVE_PROBABILITY = 0.5;
+const DEFAULT_SPEED = -4;
+const DEFAULT_SATURATION_ON = 0.98;
+const DEFAULT_SATURATION_OFF = 1.0;
+const DEFAULT_LIGHTNESS_ON = 0.76;
+const DEFAULT_LIGHTNESS_OFF = 0.015;
+const DEFAULT_HUE_SHIFT = 2.0;
+const DEFAULT_TEXTURE_MODE = 0;
 
 const MAX_ENTROPY = 65536;
 const CELL_STATE_BYTES = 4;
@@ -55,15 +63,15 @@ const _programs = {};
 const _drawCalls = {};
 const _textures = {};
 const options = parseHash();
-let _cellAliveProbability = options.alive >= 0 && options.alive <= 1 ? options.alive : 0.5;
+let _cellAliveProbability = options.alive >= 0 && options.alive <= 1 ? options.alive : DEFAULT_ALIVE_PROBABILITY;
 let _cellSize = options.size || DEFAULT_CELL_SIZE;
-let _speed = typeof options.speed === 'number' ? options.speed : -4;
-let _saturation_on = typeof options.satOn === 'number' ? options.satOn : 0.98;
-let _saturation_off = typeof options.satOff === 'number' ? options.satOff : 0.4;
-let _lightness_on = typeof options.liOn === 'number' ? options.liOn : 0.76;
-let _lightness_off = typeof options.liOff === 'number' ? options.liOff : 0;
-let _hueShift = typeof options.hueShift === 'number' ? options.hueShift : 2.0;
-let _textureMode = options.texture >= 0 && options.texture < TEXTURE_MODES.length ? options.texture : 0;
+let _speed = typeof options.speed === 'number' ? options.speed : DEFAULT_SPEED;
+let _saturation_on = typeof options.satOn === 'number' ? options.satOn : DEFAULT_SATURATION_ON;
+let _saturation_off = typeof options.satOff === 'number' ? options.satOff : DEFAULT_SATURATION_OFF;
+let _lightness_on = typeof options.liOn === 'number' ? options.liOn : DEFAULT_LIGHTNESS_ON;
+let _lightness_off = typeof options.liOff === 'number' ? options.liOff : DEFAULT_LIGHTNESS_OFF;
+let _hueShift = typeof options.hueShift === 'number' ? options.hueShift : DEFAULT_HUE_SHIFT;
+let _textureMode = options.texture >= 0 && options.texture < TEXTURE_MODES.length ? options.texture : DEFAULT_TEXTURE_MODE;
 let _gridWidth = options.width > 0 ? Math.floor(options.width) : 0;
 let _gridHeight = options.height > 0 ? Math.floor(options.height) : 0;
 let _ratio = options.ratio > 0 ? options.ratio : 0;
