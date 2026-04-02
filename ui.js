@@ -8,6 +8,26 @@ let _uiHideDelay;
 let _autoHideTimer = null;
 let _cursorOverUI = false;
 
+function updateLandscapeClass() {
+  const canvas = document.getElementById('c');
+  canvas.classList.remove('landscape-left', 'landscape-right');
+  const type = screen.orientation?.type;
+  if (type) {
+    if (type.startsWith('landscape')) {
+      canvas.classList.add(screen.orientation.angle === 270 ? 'landscape-right' : 'landscape-left');
+    }
+  } else if (Math.abs(window.orientation) === 90) {
+    canvas.classList.add(window.orientation === -90 ? 'landscape-right' : 'landscape-left');
+  }
+}
+
+if (screen.orientation) {
+  screen.orientation.addEventListener('change', updateLandscapeClass);
+} else {
+  window.addEventListener('orientationchange', updateLandscapeClass);
+}
+updateLandscapeClass();
+
 function updateConfig() {
   const options = parseHash();
   options.alive = _cellAliveProbability;

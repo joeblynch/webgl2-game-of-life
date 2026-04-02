@@ -239,15 +239,25 @@
       @media (display-mode: standalone) and (orientation: landscape),
              (pointer: coarse) and (orientation: landscape) {
         #c {
-          transform: rotate(-90deg);
-          transform-origin: left top;
           width: 100vh;
           height: 100vw;
           overflow: hidden;
           position: absolute;
-          top: 100%;
-          left: 0;
         }
+      }
+
+      #c.landscape-left {
+        transform: rotate(-90deg);
+        transform-origin: left top;
+        top: 100%;
+        left: 0;
+      }
+
+      #c.landscape-right {
+        transform: rotate(90deg);
+        transform-origin: left top;
+        top: 0;
+        left: 100%;
       }
     </style>
   </head>
