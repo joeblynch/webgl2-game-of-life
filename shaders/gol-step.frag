@@ -42,8 +42,6 @@ layout(location=5) out uvec2 min_osc_count;
 // modified. this prevents short bursts of random oscillations from being highlighted or dimmed
 const uint MIN_OSC_LEN = uint(8);
 
-// TODO: playing with making oscillators rotate their hue, possibly with a hue rotation velocity that gets inherited
-//       by new cells. Works for a bit, and then stops for some reason.
 const float HUE_SHIFT_P_FACTOR = 2.0;
 
 // TODO: adjustable global brightness, and adjustment at each level inc. off
@@ -233,8 +231,10 @@ void main() {
     float lightness_scale = LIGHTNESS_ON_SCALE * u_lightness_on;
 
     if (next_cell.r == 1) {
-      // cell is alive
-      if ((last_history.r & uint(1)) == uint(0)) {
+      // cell is alive. skip hue inheritance for detected oscillators — their hue is shifted each
+      // generation (below), and re-inheriting from neighbors on each off→on transition would reset
+      // the accumulated shift. only active (non-oscillating) cells inherit hue when newly born.
+      if ((last_history.r & uint(1)) == uint(0) && min_p == uint(0)) {
         // cell is newly on, so it inherits its color from its three parents
         // calculate new hue vector by summing hue vectors of alive neighbors
         hue_vec = ivec2(normalize(vec2(
@@ -256,7 +256,6 @@ void main() {
         saturation = SATURATION[recent] * saturation_scale;
         lightness = LIGHTNESS[recent] * lightness_scale;
       } else {
-        // TODO: figure out why hue shifting oscillators only works for a few generations
         // oscillators are hue shifted at a speed relative to its P value
         if (min_p > uint(1)) {
           hue_shift = HUE_SHIFT_P_FACTOR * (float(min_p) - 1.0);
