@@ -328,33 +328,37 @@ const _canvasEl = document.getElementById('c');
 _canvasEl.addEventListener('click', toggleToolbar);
 _canvasEl.addEventListener('dblclick', toggleFullscreen);
 
-// ─── Wheel zoom ───
+// ─── Wheel/trackpad: pinch to zoom, scroll to pan ───
 
 _canvasEl.addEventListener('wheel', (e) => {
   e.preventDefault();
 
-  const rect = _canvasEl.getBoundingClientRect();
   const dpr = window.devicePixelRatio;
-  const canvasX = (e.clientX - rect.left) * dpr;
-  const canvasY = (e.clientY - rect.top) * dpr;
 
-  // universe coords under cursor before zoom
-  // Y is flipped: screen top (canvasY=0) = universe top (viewY2)
-  const fracX = canvasX / _canvasWidth;
-  const fracY = canvasY / _canvasHeight;
-  const ux = _viewX1 + fracX * (_viewX2 - _viewX1);
-  const uy = _viewY2 - fracY * (_viewY2 - _viewY1);
+  if (e.ctrlKey) {
+    // trackpad pinch-to-zoom or ctrl+scroll wheel: zoom centered on cursor
+    const rect = _canvasEl.getBoundingClientRect();
+    const canvasX = (e.clientX - rect.left) * dpr;
+    const canvasY = (e.clientY - rect.top) * dpr;
+    const fracX = canvasX / _canvasWidth;
+    const fracY = canvasY / _canvasHeight;
+    const ux = _viewX1 + fracX * (_viewX2 - _viewX1);
+    const uy = _viewY2 - fracY * (_viewY2 - _viewY1);
 
-  // zoom factor: scroll down = zoom out, scroll up = zoom in
-  const zoomFactor = e.deltaY > 0 ? 1.1 : 1 / 1.1;
-  _zoom = Math.max(1 / 40, Math.min(_zoom * zoomFactor, 1.0));
+    const zoomFactor = Math.exp(e.deltaY * 0.01);
+    _zoom = Math.max(1 / 40, Math.min(_zoom * zoomFactor, _maxZoom));
 
-  // adjust pan so the point under cursor stays under cursor
-  const viewW = _canvasWidth * _zoom;
-  const viewH = _canvasHeight * _zoom;
-  _panX = ux - fracX * viewW + viewW / 2;
-  _panY = uy + fracY * viewH - viewH / 2;
+    const viewW = _canvasWidth * _zoom;
+    const viewH = _canvasHeight * _zoom;
+    _panX = ux - fracX * viewW + viewW / 2;
+    _panY = uy + fracY * viewH - viewH / 2;
+  } else {
+    // two-finger scroll or mouse wheel: pan (content moves under fingers)
+    _panX += e.deltaX * dpr * _zoom;
+    _panY -= e.deltaY * dpr * _zoom;
+  }
 }, { passive: false });
+
 
 // ─── Mouse drag to pan ───
 
@@ -395,35 +399,19 @@ document.addEventListener('mouseup', () => {
 // ─── Touch: tap to toggle toolbar, drag to pan, pinch to zoom ───
 
 let _touchMoved = false;
-let _pinchStartDist = 0;
-let _pinchStartZoom = 0;
-let _pinchStartPanX = 0, _pinchStartPanY = 0;
-let _pinchStartCenterX = 0, _pinchStartCenterY = 0;
+let _pinchLastDist = 0;
+let _pinchLastCenterX = 0, _pinchLastCenterY = 0;
 let _touchStartX = 0, _touchStartY = 0;
 let _touchStartPanX = 0, _touchStartPanY = 0;
-
-function screenToUniverse(screenX, screenY) {
-  const rect = _canvasEl.getBoundingClientRect();
-  const dpr = window.devicePixelRatio;
-  const canvasX = (screenX - rect.left) * dpr;
-  const canvasY = (screenY - rect.top) * dpr;
-  return {
-    x: _viewX1 + (canvasX / _canvasWidth) * (_viewX2 - _viewX1),
-    y: _viewY1 + (1 - canvasY / _canvasHeight) * (_viewY2 - _viewY1)
-  };
-}
 
 _canvasEl.addEventListener('touchstart', (e) => {
   if (e.touches.length === 2) {
     e.preventDefault();
     const dx = e.touches[0].clientX - e.touches[1].clientX;
     const dy = e.touches[0].clientY - e.touches[1].clientY;
-    _pinchStartDist = Math.hypot(dx, dy);
-    _pinchStartZoom = _zoom;
-    _pinchStartPanX = _panX;
-    _pinchStartPanY = _panY;
-    _pinchStartCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-    _pinchStartCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    _pinchLastDist = Math.hypot(dx, dy);
+    _pinchLastCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    _pinchLastCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
   } else if (e.touches.length === 1) {
     _touchStartX = e.touches[0].clientX;
     _touchStartY = e.touches[0].clientY;
@@ -436,35 +424,39 @@ _canvasEl.addEventListener('touchstart', (e) => {
 _canvasEl.addEventListener('touchmove', (e) => {
   if (e.touches.length === 2) {
     e.preventDefault();
+    const rect = _canvasEl.getBoundingClientRect();
+    const dpr = window.devicePixelRatio;
+
+    // current pinch center and distance
+    const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
     const dx = e.touches[0].clientX - e.touches[1].clientX;
     const dy = e.touches[0].clientY - e.touches[1].clientY;
     const dist = Math.hypot(dx, dy);
-    const newZoom = Math.max(1 / 40, Math.min(_pinchStartZoom * (_pinchStartDist / dist), 1.0));
 
-    // pinch center in screen coords (current)
-    const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-    const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    // universe point under PREVIOUS pinch center (from current viewport)
+    const prevFracX = (_pinchLastCenterX - rect.left) * dpr / _canvasWidth;
+    const prevFracY = (_pinchLastCenterY - rect.top) * dpr / _canvasHeight;
+    const curViewW = _canvasWidth * _zoom;
+    const curViewH = _canvasHeight * _zoom;
+    const uniX = (_panX - curViewW / 2) + prevFracX * curViewW;
+    const uniY = (_panY + curViewH / 2) - prevFracY * curViewH;
 
-    // universe point that was under the original pinch center
-    const rect = _canvasEl.getBoundingClientRect();
-    const dpr = window.devicePixelRatio;
-    const startCanvasX = (_pinchStartCenterX - rect.left) * dpr;
-    const startCanvasY = (_pinchStartCenterY - rect.top) * dpr;
-    const startViewW = _canvasWidth * _pinchStartZoom;
-    const startViewH = _canvasHeight * _pinchStartZoom;
-    const uniX = (_pinchStartPanX - startViewW / 2) + (startCanvasX / _canvasWidth) * startViewW;
-    const uniY = (_pinchStartPanY + startViewH / 2) - (startCanvasY / _canvasHeight) * startViewH;
+    // apply incremental zoom
+    const scale = _pinchLastDist / dist;
+    const newZoom = Math.max(1 / 40, Math.min(_zoom * scale, _maxZoom));
 
-    // adjust pan so that universe point is now under the current pinch center
-    const curCanvasX = (centerX - rect.left) * dpr;
-    const curCanvasY = (centerY - rect.top) * dpr;
+    // reposition so the same universe point is now under the CURRENT pinch center
+    const curFracX = (centerX - rect.left) * dpr / _canvasWidth;
+    const curFracY = (centerY - rect.top) * dpr / _canvasHeight;
     const newViewW = _canvasWidth * newZoom;
     const newViewH = _canvasHeight * newZoom;
-    const fracX = curCanvasX / _canvasWidth;
-    const fracY = curCanvasY / _canvasHeight;
-    _panX = uniX - fracX * newViewW + newViewW / 2;
-    _panY = uniY + fracY * newViewH - newViewH / 2;
+    _panX = uniX + newViewW * (0.5 - curFracX);
+    _panY = uniY + newViewH * (curFracY - 0.5);
     _zoom = newZoom;
+    _pinchLastDist = dist;
+    _pinchLastCenterX = centerX;
+    _pinchLastCenterY = centerY;
   } else if (e.touches.length === 1) {
     const dx = e.touches[0].clientX - _touchStartX;
     const dy = e.touches[0].clientY - _touchStartY;

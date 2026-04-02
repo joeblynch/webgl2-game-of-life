@@ -81,6 +81,12 @@ let _quad;
 let _vao;
 let _stateWidth;
 let _stateHeight;
+let _maxWidth;
+let _maxHeight;
+let _universeWidth;
+let _universeHeight;
+let _universeOffsetX;
+let _universeOffsetY;
 let _canvasWidth;
 let _canvasHeight;
 let _activeWidth;
@@ -92,6 +98,7 @@ let _yEdgeDist = START_GENERATION + 1;
 let _maxGenerations = -1;
 let _entropy;
 let _zoom;
+let _maxZoom;
 let _panX, _panY;
 let _viewX1, _viewY1, _viewX2, _viewY2;
 let _wakeLock = null;
@@ -149,7 +156,7 @@ const _textureDescEl = document.getElementById('texture-desc');
     if (now - 250 >= _lastActiveUpdate && _generation > 0 && _endedGeneration < 0) {
       const active = getActiveCells();
       _activeEl.innerText = active;
-      if (!active && _generation + 2 > Math.max(_stateWidth >> 1, _stateHeight >> 1)) {
+      if (!active && _generation + 2 > Math.max(_universeWidth >> 1, _universeHeight >> 1)) {
         if (_generation > _maxGenerations) {
           _maxGenerations = _generation;
           console.log('max generations: ', _generation, _entropy);
@@ -198,6 +205,10 @@ function step() {
   _drawCalls.golStep.uniform('u_lightness_off', _lightness_off);
   _drawCalls.golStep.uniform('u_hue_shift', _hueShift);
   _drawCalls.golStep.uniform('u_existence', existence);
+  _drawCalls.golStep.uniform('u_universe_offset_x', _universeOffsetX);
+  _drawCalls.golStep.uniform('u_universe_offset_y', _universeOffsetY);
+  _drawCalls.golStep.uniform('u_universe_w', _universeWidth);
+  _drawCalls.golStep.uniform('u_universe_h', _universeHeight);
   _drawCalls.golStep.uniform('u_x_edge_dist', _xEdgeDist);
   _drawCalls.golStep.uniform('u_y_edge_dist', _yEdgeDist);
   _drawCalls.golStep.texture('u_state', _textures.state[backIndex]);
@@ -206,21 +217,26 @@ function step() {
   _drawCalls.golStep.texture('u_osc_count_1', _textures.oscCounts[0][backIndex]);
   _drawCalls.golStep.texture('u_osc_count_2', _textures.oscCounts[1][backIndex]);
 
-  _app.gl.viewport(0, 0, _stateWidth, _stateHeight);
+  _app.gl.viewport(_universeOffsetX, _universeOffsetY, _universeWidth, _universeHeight);
   _drawCalls.golStep.draw();
 
   _generation++;
-  _xEdgeDist++;
-  _yEdgeDist++;
+  _xEdgeDist = Math.min(_xEdgeDist + 1, Math.floor(_universeWidth / 2) + 1);
+  _yEdgeDist = Math.min(_yEdgeDist + 1, Math.floor(_universeHeight / 2) + 1);
 }
 
 function computeViewport() {
-  const halfW = (_canvasWidth * _zoom) / 2;
-  const halfH = (_canvasHeight * _zoom) / 2;
-  _viewX1 = _panX - halfW;
-  _viewY1 = _panY - halfH;
-  _viewX2 = _panX + halfW;
-  _viewY2 = _panY + halfH;
+  const viewW = _canvasWidth * _zoom;
+  const viewH = _canvasHeight * _zoom;
+
+  // clamp pan so viewport stays within max universe bounds (0..maxWidth, 0..maxHeight)
+  _panX = Math.max(viewW / 2, Math.min(_panX, _maxWidth - viewW / 2));
+  _panY = Math.max(viewH / 2, Math.min(_panY, _maxHeight - viewH / 2));
+
+  _viewX1 = _panX - viewW / 2;
+  _viewY1 = _panY - viewH / 2;
+  _viewX2 = _panX + viewW / 2;
+  _viewY2 = _panY + viewH / 2;
 }
 
 function setViewportUniforms(dc) {
@@ -230,14 +246,47 @@ function setViewportUniforms(dc) {
   dc.uniform('u_view_y2', _viewY2);
   dc.uniform('u_canvas_w', _canvasWidth);
   dc.uniform('u_canvas_h', _canvasHeight);
-  dc.uniform('u_universe_offset_x', 0);
-  dc.uniform('u_universe_offset_y', 0);
-  dc.uniform('u_universe_w', _stateWidth);
-  dc.uniform('u_universe_h', _stateHeight);
+  dc.uniform('u_universe_offset_x', _universeOffsetX);
+  dc.uniform('u_universe_offset_y', _universeOffsetY);
+  dc.uniform('u_universe_w', _universeWidth);
+  dc.uniform('u_universe_h', _universeHeight);
+}
+
+function maybeExpandUniverse() {
+  const gapLeft = Math.max(0, -_viewX1);
+  const gapRight = Math.max(0, _viewX2 - _universeWidth);
+  const gapTop = Math.max(0, _viewY2 - _universeHeight);
+  const gapBottom = Math.max(0, -_viewY1);
+  const maxGap = Math.max(gapLeft, gapRight, gapTop, gapBottom);
+  if (maxGap <= 0) return;
+
+  const expand = Math.ceil(maxGap) * 2;
+  const newW = Math.min(_universeWidth + expand, _maxWidth);
+  const newH = Math.min(_universeHeight + expand, _maxHeight);
+  if (newW === _universeWidth && newH === _universeHeight) return;
+
+  // clamp edge distances to old universe half-sizes so the event horizon re-expands
+  const oldHalfW = Math.floor(_universeWidth / 2);
+  const oldHalfH = Math.floor(_universeHeight / 2);
+  _xEdgeDist = Math.min(_xEdgeDist, oldHalfW + 1);
+  _yEdgeDist = Math.min(_yEdgeDist, oldHalfH + 1);
+
+  // adjust pan to account for universe origin shifting
+  const newOffX = Math.floor((_maxWidth - newW) / 2);
+  const newOffY = Math.floor((_maxHeight - newH) / 2);
+  _panX += _universeOffsetX - newOffX;
+  _panY += _universeOffsetY - newOffY;
+
+  _universeWidth = newW;
+  _universeHeight = newH;
+  _universeOffsetX = newOffX;
+  _universeOffsetY = newOffY;
 }
 
 function draw() {
   computeViewport();
+  maybeExpandUniverse();
+  computeViewport();  // recompute after expansion may have adjusted pan
 
   const frontIndex = (_generation + (_generation < 0 ? 2 : 0)) % 2;
 
@@ -297,10 +346,19 @@ function reset() {
   _yEdgeDist = START_GENERATION + 1;
   _endedGeneration = -1;
 
-  _entropy = generateRandomState(_stateWidth, _stateHeight);
+  // reset universe to initial size
+  _universeWidth = _stateWidth;
+  _universeHeight = _stateHeight;
+  _universeOffsetX = Math.floor((_maxWidth - _universeWidth) / 2);
+  _universeOffsetY = Math.floor((_maxHeight - _universeHeight) / 2);
+  _panX = _universeWidth / 2;
+  _panY = _universeHeight / 2;
+  _zoom = 1 / _cellSize;
+
+  _entropy = generateRandomState(_maxWidth, _maxHeight);
 
   _textures.entropy.delete();
-  _textures.entropy = _app.createTexture2D(_entropy, _stateWidth, _stateHeight, {
+  _textures.entropy = _app.createTexture2D(_entropy, _maxWidth, _maxHeight, {
     internalFormat: PicoGL.RGBA8I,
     format: PicoGL.RGBA_INTEGER,
     type: PicoGL.BYTE,
@@ -396,7 +454,17 @@ async function init(reInit = false) {
     }
   }
 
-  console.log(width, height, _stateWidth, _stateHeight);
+  // max texture size = full screen pixel resolution (1 cell per pixel at max zoom-out)
+  _maxWidth = Math.floor(width);
+  _maxHeight = Math.floor(height);
+
+  // initial universe = stateWidth x stateHeight, centered in max-size texture
+  _universeWidth = _stateWidth;
+  _universeHeight = _stateHeight;
+  _universeOffsetX = Math.floor((_maxWidth - _universeWidth) / 2);
+  _universeOffsetY = Math.floor((_maxHeight - _universeHeight) / 2);
+
+  console.log(width, height, _stateWidth, _stateHeight, 'max:', _maxWidth, _maxHeight);
 
   if (!reInit) {
     const canvasEl = document.getElementById('c');
@@ -481,9 +549,9 @@ async function init(reInit = false) {
     _textures.activeCounts.delete();
   }
 
-  const entropy = generateRandomState(_stateWidth, _stateHeight);
+  const entropy = generateRandomState(_maxWidth, _maxHeight);
 
-  _textures.entropy = _app.createTexture2D(entropy, _stateWidth, _stateHeight, {
+  _textures.entropy = _app.createTexture2D(entropy, _maxWidth, _maxHeight, {
     internalFormat: PicoGL.RGBA8I,
     format: PicoGL.RGBA_INTEGER,
     type: PicoGL.BYTE,
@@ -491,7 +559,7 @@ async function init(reInit = false) {
     magFilter: PicoGL.NEAREST
   });
 
-  const createStateTexture = () => _app.createTexture2D(_stateWidth, _stateHeight, {
+  const createStateTexture = () => _app.createTexture2D(_maxWidth, _maxHeight, {
     internalFormat: PicoGL.RGBA8I,
     format: PicoGL.RGBA_INTEGER,
     type: PicoGL.BYTE,
@@ -502,7 +570,7 @@ async function init(reInit = false) {
   // empty back and front state buffers
   _textures.state = [createStateTexture(), createStateTexture()];
 
-  const createHistoryTexture = () => _app.createTexture2D(_stateWidth, _stateHeight, {
+  const createHistoryTexture = () => _app.createTexture2D(_maxWidth, _maxHeight, {
     internalFormat: PicoGL.R32UI,
     format: PicoGL.RGBA_INTEGER,
     type: PicoGL.UNSIGNED_INT,
@@ -513,7 +581,7 @@ async function init(reInit = false) {
   // front and back history buffers, tracking the last 32 states for oscillator detection
   _textures.history = [createHistoryTexture(), createHistoryTexture()];
 
-  const createOscCountTexture = () => _app.createTexture2D(_stateWidth, _stateHeight, {
+  const createOscCountTexture = () => _app.createTexture2D(_maxWidth, _maxHeight, {
     internalFormat: PicoGL.RGBA8UI,
     format: PicoGL.RGBA_INTEGER,
     type: PicoGL.UNSIGNED_BYTE,
@@ -527,7 +595,7 @@ async function init(reInit = false) {
     [createOscCountTexture(), createOscCountTexture()]
   ];
 
-  _textures.minOscCount = _app.createTexture2D(_stateWidth, _stateHeight, {
+  _textures.minOscCount = _app.createTexture2D(_maxWidth, _maxHeight, {
     internalFormat: PicoGL.RG8UI,
     format: PicoGL.RG_INTEGER,
     type: PicoGL.UNSIGNED_INT,
@@ -535,13 +603,13 @@ async function init(reInit = false) {
     magFilter: PicoGL.NEAREST
   });
 
-  _textures.cellColors = _app.createTexture2D(_stateWidth, _stateHeight, {
+  _textures.cellColors = _app.createTexture2D(_maxWidth, _maxHeight, {
     minFilter: PicoGL.NEAREST,
     magFilter: PicoGL.NEAREST
   });
 
-  _activeWidth = Math.ceil(_stateWidth / 16);
-  _activeHeight = Math.ceil(_stateHeight / 16);
+  _activeWidth = Math.ceil(_maxWidth / 16);
+  _activeHeight = Math.ceil(_maxHeight / 16);
 
   _activeCounts = new Uint32Array(_activeWidth * _activeHeight * 4);
 
@@ -553,14 +621,11 @@ async function init(reInit = false) {
 
   // initial zoom: 1 cell = _cellSize canvas pixels, so _zoom = 1/_cellSize cells per pixel
   _zoom = 1 / _cellSize;
-  _panX = _stateWidth / 2;
-  _panY = _stateHeight / 2;
+  _maxZoom = Math.max(_maxWidth / _canvasWidth, _maxHeight / _canvasHeight);
+  _panX = _universeWidth / 2;
+  _panY = _universeHeight / 2;
 
-  _drawCalls.golStep = _app.createDrawCall(_programs.golStep, _vao)
-    .uniform('u_universe_offset_x', 0)
-    .uniform('u_universe_offset_y', 0)
-    .uniform('u_universe_w', _stateWidth)
-    .uniform('u_universe_h', _stateHeight);
+  _drawCalls.golStep = _app.createDrawCall(_programs.golStep, _vao);
   _drawCalls.screenColors = _app.createDrawCall(_programs.screenColors, _vao)
     .texture('u_cell_colors', _textures.cellColors);
   _drawCalls.screenAlive = _app.createDrawCall(_programs.screenAlive, _vao);
