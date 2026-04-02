@@ -45,7 +45,7 @@
         transform: translate(-50%, -50%);
       }
 
-      #fps, #gen, #active, #toggle-help, #texture-desc {
+      #fps, #gen, #active, #texture-desc {
         position: fixed;
         bottom: 10px;
         color: #af0;
@@ -53,7 +53,7 @@
         background-color: rgba(0, 0, 0, 0.75)
       }
 
-      .hide-status #fps, .hide-status #gen, .hide-status #active, .hide-status #toggle-help, .hide-status #texture-desc {
+      .hide-status #fps, .hide-status #gen, .hide-status #active, .hide-status #texture-desc {
         display: none;
       }
 
@@ -71,11 +71,6 @@
 
       #active {
         right: 100px;
-      }
-
-      #toggle-help {
-        left: 10px;
-        cursor: pointer;
       }
 
       #help-container {
@@ -116,7 +111,7 @@
         margin-top: 16px;
       }
 
-      #fps, #gen, #active, #toggle-help, #texture-desc {
+      #fps, #gen, #active, #texture-desc {
         transition: opacity 0.3s ease;
       }
 
@@ -237,8 +232,7 @@
       .toolbar.visible ~ #fps,
       .toolbar.visible ~ #texture-desc,
       .toolbar.visible ~ #gen,
-      .toolbar.visible ~ #active,
-      .toolbar.visible ~ #toggle-help {
+      .toolbar.visible ~ #active {
         opacity: 0;
       }
 
@@ -290,7 +284,6 @@
       <label class="settings-checkbox"><input type="checkbox" id="chk-status" checked> Show status</label>
       <button id="btn-shortcuts" class="settings-link" title="Keyboard shortcuts [?]">Keyboard shortcuts</button>
     </div>
-    <div id="toggle-help" onclick="toggleHelp()">[?]</div>
     <div id="texture-desc"></div>
     <div id="fps"></div>
     <div id="gen"></div>
