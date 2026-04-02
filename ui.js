@@ -323,8 +323,170 @@ document.addEventListener('keydown', (e) => {
 
 // ─── Canvas click / double-click / mouse move ───
 
-document.getElementById('c').addEventListener('click', toggleToolbar);
-document.getElementById('c').addEventListener('dblclick', toggleFullscreen);
+const _canvasEl = document.getElementById('c');
+
+_canvasEl.addEventListener('click', toggleToolbar);
+_canvasEl.addEventListener('dblclick', toggleFullscreen);
+
+// ─── Wheel zoom ───
+
+_canvasEl.addEventListener('wheel', (e) => {
+  e.preventDefault();
+
+  const rect = _canvasEl.getBoundingClientRect();
+  const dpr = window.devicePixelRatio;
+  const canvasX = (e.clientX - rect.left) * dpr;
+  const canvasY = (e.clientY - rect.top) * dpr;
+
+  // universe coords under cursor before zoom
+  // Y is flipped: screen top (canvasY=0) = universe top (viewY2)
+  const fracX = canvasX / _canvasWidth;
+  const fracY = canvasY / _canvasHeight;
+  const ux = _viewX1 + fracX * (_viewX2 - _viewX1);
+  const uy = _viewY2 - fracY * (_viewY2 - _viewY1);
+
+  // zoom factor: scroll down = zoom out, scroll up = zoom in
+  const zoomFactor = e.deltaY > 0 ? 1.1 : 1 / 1.1;
+  _zoom = Math.max(1 / 40, Math.min(_zoom * zoomFactor, 1.0));
+
+  // adjust pan so the point under cursor stays under cursor
+  const viewW = _canvasWidth * _zoom;
+  const viewH = _canvasHeight * _zoom;
+  _panX = ux - fracX * viewW + viewW / 2;
+  _panY = uy + fracY * viewH - viewH / 2;
+}, { passive: false });
+
+// ─── Mouse drag to pan ───
+
+let _dragStartX = 0, _dragStartY = 0;
+let _dragStartPanX = 0, _dragStartPanY = 0;
+let _isDragging = false;
+let _mouseMoved = false;
+
+_canvasEl.addEventListener('mousedown', (e) => {
+  if (e.button === 0) {
+    _isDragging = true;
+    _mouseMoved = false;
+    _dragStartX = e.clientX;
+    _dragStartY = e.clientY;
+    _dragStartPanX = _panX;
+    _dragStartPanY = _panY;
+  }
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!_isDragging) return;
+  const dx = e.clientX - _dragStartX;
+  const dy = e.clientY - _dragStartY;
+  if (!_mouseMoved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+    _mouseMoved = true;
+  }
+  if (_mouseMoved) {
+    const dpr = window.devicePixelRatio;
+    _panX = _dragStartPanX - dx * dpr * _zoom;
+    _panY = _dragStartPanY + dy * dpr * _zoom;
+  }
+});
+
+document.addEventListener('mouseup', () => {
+  _isDragging = false;
+});
+
+// ─── Touch: tap to toggle toolbar, drag to pan, pinch to zoom ───
+
+let _touchMoved = false;
+let _pinchStartDist = 0;
+let _pinchStartZoom = 0;
+let _pinchStartPanX = 0, _pinchStartPanY = 0;
+let _pinchStartCenterX = 0, _pinchStartCenterY = 0;
+let _touchStartX = 0, _touchStartY = 0;
+let _touchStartPanX = 0, _touchStartPanY = 0;
+
+function screenToUniverse(screenX, screenY) {
+  const rect = _canvasEl.getBoundingClientRect();
+  const dpr = window.devicePixelRatio;
+  const canvasX = (screenX - rect.left) * dpr;
+  const canvasY = (screenY - rect.top) * dpr;
+  return {
+    x: _viewX1 + (canvasX / _canvasWidth) * (_viewX2 - _viewX1),
+    y: _viewY1 + (1 - canvasY / _canvasHeight) * (_viewY2 - _viewY1)
+  };
+}
+
+_canvasEl.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 2) {
+    e.preventDefault();
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    _pinchStartDist = Math.hypot(dx, dy);
+    _pinchStartZoom = _zoom;
+    _pinchStartPanX = _panX;
+    _pinchStartPanY = _panY;
+    _pinchStartCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    _pinchStartCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+  } else if (e.touches.length === 1) {
+    _touchStartX = e.touches[0].clientX;
+    _touchStartY = e.touches[0].clientY;
+    _touchStartPanX = _panX;
+    _touchStartPanY = _panY;
+    _touchMoved = false;
+  }
+}, { passive: false });
+
+_canvasEl.addEventListener('touchmove', (e) => {
+  if (e.touches.length === 2) {
+    e.preventDefault();
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.hypot(dx, dy);
+    const newZoom = Math.max(1 / 40, Math.min(_pinchStartZoom * (_pinchStartDist / dist), 1.0));
+
+    // pinch center in screen coords (current)
+    const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+
+    // universe point that was under the original pinch center
+    const rect = _canvasEl.getBoundingClientRect();
+    const dpr = window.devicePixelRatio;
+    const startCanvasX = (_pinchStartCenterX - rect.left) * dpr;
+    const startCanvasY = (_pinchStartCenterY - rect.top) * dpr;
+    const startViewW = _canvasWidth * _pinchStartZoom;
+    const startViewH = _canvasHeight * _pinchStartZoom;
+    const uniX = (_pinchStartPanX - startViewW / 2) + (startCanvasX / _canvasWidth) * startViewW;
+    const uniY = (_pinchStartPanY + startViewH / 2) - (startCanvasY / _canvasHeight) * startViewH;
+
+    // adjust pan so that universe point is now under the current pinch center
+    const curCanvasX = (centerX - rect.left) * dpr;
+    const curCanvasY = (centerY - rect.top) * dpr;
+    const newViewW = _canvasWidth * newZoom;
+    const newViewH = _canvasHeight * newZoom;
+    const fracX = curCanvasX / _canvasWidth;
+    const fracY = curCanvasY / _canvasHeight;
+    _panX = uniX - fracX * newViewW + newViewW / 2;
+    _panY = uniY + fracY * newViewH - newViewH / 2;
+    _zoom = newZoom;
+  } else if (e.touches.length === 1) {
+    const dx = e.touches[0].clientX - _touchStartX;
+    const dy = e.touches[0].clientY - _touchStartY;
+    if (!_touchMoved && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
+      _touchMoved = true;
+    }
+    if (_touchMoved) {
+      e.preventDefault();
+      const dpr = window.devicePixelRatio;
+      _panX = _touchStartPanX - dx * dpr * _zoom;
+      _panY = _touchStartPanY + dy * dpr * _zoom;
+    }
+  }
+}, { passive: false });
+
+// Override click handler: only toggle toolbar if no drag occurred
+_canvasEl.removeEventListener('click', toggleToolbar);
+_canvasEl.addEventListener('click', () => {
+  if (!_touchMoved && !_mouseMoved) {
+    toggleToolbar();
+  }
+});
 
 if (window.matchMedia('(pointer: fine)').matches) {
   document.addEventListener('mousemove', () => {

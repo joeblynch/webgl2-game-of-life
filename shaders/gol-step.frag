@@ -4,9 +4,6 @@ precision mediump int;
 precision mediump isampler2D;
 precision mediump usampler2D;
 
-// generation is input to determine horizon distance
-uniform int u_generation;
-
 // input user configurable multipliers for saturation and lightness of on and off cells
 uniform float u_saturation_on;
 uniform float u_saturation_off;
@@ -29,6 +26,13 @@ uniform isampler2D u_entropy;
 // this allows us to detect "active" cells (non-oscillators), and when no active cells remain, the end of the universe
 uniform usampler2D u_osc_count_1;
 uniform usampler2D u_osc_count_2;
+
+uniform int u_universe_offset_x;  // where universe (0,0) starts in texture
+uniform int u_universe_offset_y;
+uniform int u_universe_w;         // current universe width
+uniform int u_universe_h;         // current universe height
+uniform int u_x_edge_dist;       // event horizon distance from center in X
+uniform int u_y_edge_dist;       // event horizon distance from center in Y
 
 // output the next cell state, and the new state of the cell's history and oscillator counts
 layout(location=0) out ivec4 cell_out;
@@ -109,10 +113,10 @@ const float RAD_TO_DEG = 180.0 / PI;
 const float DEG_TO_RAD = PI / 180.0;
 const float INV_360 = 1.0 / 360.0;
 
-ivec4 getState(ivec2 coord, ivec2 size) {
+ivec4 getState(ivec2 local_coord, ivec2 size) {
   // handle the wrapping of coordinates around the torus manually, to support non-power-of-two sized universes
-  ivec2 wrapped = (coord + size) % size;
-  return texelFetch(u_state, wrapped, 0);
+  ivec2 wrapped = (local_coord + size) % size;
+  return texelFetch(u_state, wrapped + ivec2(u_universe_offset_x, u_universe_offset_y), 0);
 }
 
 uint getOscCount(uint history, uint p, uint prev_osc_count) {
@@ -128,8 +132,9 @@ uint getOscCount(uint history, uint p, uint prev_osc_count) {
 }
 
 void main() {
-  ivec2 size = textureSize(u_state, 0);
   ivec2 coord = ivec2(gl_FragCoord.xy);
+  ivec2 size = ivec2(u_universe_w, u_universe_h);
+  ivec2 local = coord - ivec2(u_universe_offset_x, u_universe_offset_y);
   ivec2 center = size >> 1;
   ivec4 next_cell;
   uvec4 next_history;
@@ -146,14 +151,14 @@ void main() {
   // figure out where the "event horizon" is, and where we are relative to it
   // this "universe" starts as a single empty point, surrounded by an event horizon, and expands at the speed of light.
   // we start at a generation -2, just before the universe exists, in order to inject entropy just beyond the horizon
-  int horizon_dist = u_generation + 1;
-  int entropy_dist = horizon_dist + 1;
+  int x_edge = u_x_edge_dist;
+  int y_edge = u_y_edge_dist;
 
   if (
-    coord.x > center.x - horizon_dist &&
-    coord.x < center.x + horizon_dist &&
-    coord.y > center.y - horizon_dist &&
-    coord.y < center.y + horizon_dist
+    local.x > center.x - x_edge &&
+    local.x < center.x + x_edge &&
+    local.y > center.y - y_edge &&
+    local.y < center.y + y_edge
   ) {
     // this cell is inside the universe
 
@@ -164,14 +169,14 @@ void main() {
     */
 
     // lookup neighbor state
-    ivec4 nw = getState(coord + ivec2(-1, -1), size);
-    ivec4 n  = getState(coord + ivec2( 0, -1), size);
-    ivec4 ne = getState(coord + ivec2( 1, -1), size);
-    ivec4 w  = getState(coord + ivec2(-1,  0), size);
-    ivec4 e  = getState(coord + ivec2( 1,  0), size);
-    ivec4 sw = getState(coord + ivec2(-1,  1), size);
-    ivec4 s  = getState(coord + ivec2( 0,  1), size);
-    ivec4 se = getState(coord + ivec2( 1,  1), size);
+    ivec4 nw = getState(local + ivec2(-1, -1), size);
+    ivec4 n  = getState(local + ivec2( 0, -1), size);
+    ivec4 ne = getState(local + ivec2( 1, -1), size);
+    ivec4 w  = getState(local + ivec2(-1,  0), size);
+    ivec4 e  = getState(local + ivec2( 1,  0), size);
+    ivec4 sw = getState(local + ivec2(-1,  1), size);
+    ivec4 s  = getState(local + ivec2( 0,  1), size);
+    ivec4 se = getState(local + ivec2( 1,  1), size);
 
     // lookup own past
     uvec4 last_history = texelFetch(u_history, coord, 0);
@@ -281,10 +286,10 @@ void main() {
       );
     }
   } else if (
-    ((coord.x == center.x - horizon_dist || coord.x == center.x + horizon_dist) &&
-      coord.y >= center.y - horizon_dist && coord.y <= center.y + horizon_dist) ||
-    ((coord.y == center.y - horizon_dist || coord.y == center.y + horizon_dist) &&
-      coord.x >= center.x - horizon_dist && coord.x <= center.x + horizon_dist)
+    ((local.x == center.x - x_edge || local.x == center.x + x_edge) &&
+      local.y >= center.y - y_edge && local.y <= center.y + y_edge) ||
+    ((local.y == center.y - y_edge || local.y == center.y + y_edge) &&
+      local.x >= center.x - x_edge && local.x <= center.x + x_edge)
   ) {
     // we're in the event horizon. this cell has entered the universe, and affects the state of its neighbors inside
     // the universe. time does not tick here, because some of its neighbors are still beyond the event horizon, and
@@ -301,10 +306,10 @@ void main() {
       lightness = 0.84;
     }
   } else if (
-    ((coord.x == center.x - entropy_dist || coord.x == center.x + entropy_dist) &&
-      coord.y >= center.y - entropy_dist && coord.y <= center.y + entropy_dist) ||
-    ((coord.y == center.y - entropy_dist || coord.y == center.y + entropy_dist) &&
-      coord.x >= center.x - entropy_dist && coord.x <= center.x + entropy_dist)
+    ((local.x == center.x - (x_edge + 1) || local.x == center.x + (x_edge + 1)) &&
+      local.y >= center.y - (y_edge + 1) && local.y <= center.y + (y_edge + 1)) ||
+    ((local.y == center.y - (y_edge + 1) || local.y == center.y + (y_edge + 1)) &&
+      local.x >= center.x - (x_edge + 1) && local.x <= center.x + (x_edge + 1))
   ) {
     // we're just beyond the event horizon, inject some entropy into the state grid, ready for its neighbors to
     // interact with starting the next generation.

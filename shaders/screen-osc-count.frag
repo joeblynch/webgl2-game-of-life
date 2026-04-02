@@ -4,17 +4,34 @@ precision mediump int;
 precision mediump usampler2D;
 
 uniform usampler2D u_osc_count;
-uniform int cell_size;
+uniform float u_view_x1, u_view_y1, u_view_x2, u_view_y2;
+uniform float u_canvas_w, u_canvas_h;
+uniform int u_universe_offset_x, u_universe_offset_y;
+uniform int u_universe_w, u_universe_h;
 
 layout(location=0) out vec4 frag_color;
 
 void main() {
-  ivec2 coord = ivec2(gl_FragCoord.xy);
-  if (cell_size > 2 && (coord.x % cell_size == 0 || coord.y % cell_size == 0)) {
-    // for cell sizes over 2, add a black line between cells
+  vec2 uv = gl_FragCoord.xy / vec2(u_canvas_w, u_canvas_h);
+  vec2 state_coord = vec2(mix(u_view_x1, u_view_x2, uv.x), mix(u_view_y1, u_view_y2, uv.y));
+  ivec2 cell = ivec2(floor(state_coord));
+
+  if (cell.x < 0 || cell.y < 0 || cell.x >= u_universe_w || cell.y >= u_universe_h) {
     frag_color = vec4(0.0, 0.0, 0.0, 1.0);
-  } else {
-    uvec4 cell = texelFetch(u_osc_count, coord / cell_size, 0);
-    frag_color = vec4(vec3(cell.gba) / 255.0, 1.0);
+    return;
   }
+
+  float cell_pixels = u_canvas_w / (u_view_x2 - u_view_x1);
+  if (cell_pixels > 2.5) {
+    vec2 f = fract(state_coord);
+    float line_w = 1.0 / cell_pixels;
+    if (f.x < line_w || f.y < line_w) {
+      frag_color = vec4(0.0, 0.0, 0.0, 1.0);
+      return;
+    }
+  }
+
+  ivec2 texel = cell + ivec2(u_universe_offset_x, u_universe_offset_y);
+  uvec4 osc = texelFetch(u_osc_count, texel, 0);
+  frag_color = vec4(vec3(osc.gba) / 255.0, 1.0);
 }

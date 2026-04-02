@@ -87,8 +87,13 @@ let _activeWidth;
 let _activeHeight;
 let _activeFramebuffer;
 let _generation = START_GENERATION;
+let _xEdgeDist = START_GENERATION + 1;
+let _yEdgeDist = START_GENERATION + 1;
 let _maxGenerations = -1;
 let _entropy;
+let _zoom;
+let _panX, _panY;
+let _viewX1, _viewY1, _viewX2, _viewY2;
 let _wakeLock = null;
 let _running = true;
 let _endedGeneration = -1;
@@ -187,13 +192,14 @@ function step() {
   _app.drawFramebuffer(_offscreen);
 
   // TODO: probably a lot more performant to use an uniform buffer object
-  _drawCalls.golStep.uniform('u_generation', _generation);
   _drawCalls.golStep.uniform('u_saturation_on', _saturation_on);
   _drawCalls.golStep.uniform('u_saturation_off', _saturation_off);
   _drawCalls.golStep.uniform('u_lightness_on', _lightness_on);
   _drawCalls.golStep.uniform('u_lightness_off', _lightness_off);
   _drawCalls.golStep.uniform('u_hue_shift', _hueShift);
   _drawCalls.golStep.uniform('u_existence', existence);
+  _drawCalls.golStep.uniform('u_x_edge_dist', _xEdgeDist);
+  _drawCalls.golStep.uniform('u_y_edge_dist', _yEdgeDist);
   _drawCalls.golStep.texture('u_state', _textures.state[backIndex]);
   _drawCalls.golStep.texture('u_history', _textures.history[backIndex]);
   _drawCalls.golStep.texture('u_entropy', _textures.entropy);
@@ -204,9 +210,35 @@ function step() {
   _drawCalls.golStep.draw();
 
   _generation++;
+  _xEdgeDist++;
+  _yEdgeDist++;
+}
+
+function computeViewport() {
+  const halfW = (_canvasWidth * _zoom) / 2;
+  const halfH = (_canvasHeight * _zoom) / 2;
+  _viewX1 = _panX - halfW;
+  _viewY1 = _panY - halfH;
+  _viewX2 = _panX + halfW;
+  _viewY2 = _panY + halfH;
+}
+
+function setViewportUniforms(dc) {
+  dc.uniform('u_view_x1', _viewX1);
+  dc.uniform('u_view_y1', _viewY1);
+  dc.uniform('u_view_x2', _viewX2);
+  dc.uniform('u_view_y2', _viewY2);
+  dc.uniform('u_canvas_w', _canvasWidth);
+  dc.uniform('u_canvas_h', _canvasHeight);
+  dc.uniform('u_universe_offset_x', 0);
+  dc.uniform('u_universe_offset_y', 0);
+  dc.uniform('u_universe_w', _stateWidth);
+  dc.uniform('u_universe_h', _stateHeight);
 }
 
 function draw() {
+  computeViewport();
+
   const frontIndex = (_generation + (_generation < 0 ? 2 : 0)) % 2;
 
   if (TEXTURE_MODES[_textureMode] === 'activeCounts') {
@@ -219,33 +251,41 @@ function draw() {
 
   switch (TEXTURE_MODES[_textureMode]) {
     case 'colors':
+      setViewportUniforms(_drawCalls.screenColors);
       _drawCalls.screenColors.draw();
       break;
     case 'alive':
       _drawCalls.screenAlive.texture('u_state', _textures.state[frontIndex]);
+      setViewportUniforms(_drawCalls.screenAlive);
       _drawCalls.screenAlive.draw();
       break;
     case 'state':
       _drawCalls.screenState.texture('u_state', _textures.state[frontIndex]);
+      setViewportUniforms(_drawCalls.screenState);
       _drawCalls.screenState.draw();
       break;
     case 'hue':
       _drawCalls.screenHue.texture('u_state', _textures.state[frontIndex]);
+      setViewportUniforms(_drawCalls.screenHue);
       _drawCalls.screenHue.draw();
       break;
     case 'oscCount':
       _drawCalls.screenOscCount.texture('u_osc_count', _textures.oscCounts[0][frontIndex]);
+      setViewportUniforms(_drawCalls.screenOscCount);
       _drawCalls.screenOscCount.draw();
       break;
     case 'minOscCount':
+      setViewportUniforms(_drawCalls.screenMinOscCount);
       _drawCalls.screenMinOscCount.draw();
       break;
     case 'active':
       _drawCalls.screenActive.texture('u_state', _textures.state[frontIndex]);
+      setViewportUniforms(_drawCalls.screenActive);
       _drawCalls.screenActive.draw();
       break;
     case 'activeCounts':
       _drawCalls.screenActiveCounts.texture('u_state', _textures.state[frontIndex]);
+      setViewportUniforms(_drawCalls.screenActiveCounts);
       _drawCalls.screenActiveCounts.draw();
       break;
   }
@@ -253,6 +293,8 @@ function draw() {
 
 function reset() {
   _generation = START_GENERATION;
+  _xEdgeDist = START_GENERATION + 1;
+  _yEdgeDist = START_GENERATION + 1;
   _endedGeneration = -1;
 
   _entropy = generateRandomState(_stateWidth, _stateHeight);
@@ -509,31 +551,32 @@ async function init(reInit = false) {
     type: PicoGL.UNSIGNED_INT
   });
 
-  _drawCalls.golStep = _app.createDrawCall(_programs.golStep, _vao);
+  // initial zoom: 1 cell = _cellSize canvas pixels, so _zoom = 1/_cellSize cells per pixel
+  _zoom = 1 / _cellSize;
+  _panX = _stateWidth / 2;
+  _panY = _stateHeight / 2;
+
+  _drawCalls.golStep = _app.createDrawCall(_programs.golStep, _vao)
+    .uniform('u_universe_offset_x', 0)
+    .uniform('u_universe_offset_y', 0)
+    .uniform('u_universe_w', _stateWidth)
+    .uniform('u_universe_h', _stateHeight);
   _drawCalls.screenColors = _app.createDrawCall(_programs.screenColors, _vao)
-    .texture('u_cell_colors', _textures.cellColors)
-    .uniform('cell_size', _cellSize);
-  _drawCalls.screenAlive = _app.createDrawCall(_programs.screenAlive, _vao)
-    .uniform('cell_size', _cellSize);
-  _drawCalls.screenState = _app.createDrawCall(_programs.screenState, _vao)
-    .uniform('cell_size', _cellSize);
-  _drawCalls.screenHue = _app.createDrawCall(_programs.screenHue, _vao)
-    .uniform('cell_size', _cellSize);
-  _drawCalls.screenOscCount = _app.createDrawCall(_programs.screenOscCount, _vao)
-    .uniform('cell_size', _cellSize);
+    .texture('u_cell_colors', _textures.cellColors);
+  _drawCalls.screenAlive = _app.createDrawCall(_programs.screenAlive, _vao);
+  _drawCalls.screenState = _app.createDrawCall(_programs.screenState, _vao);
+  _drawCalls.screenHue = _app.createDrawCall(_programs.screenHue, _vao);
+  _drawCalls.screenOscCount = _app.createDrawCall(_programs.screenOscCount, _vao);
   _drawCalls.screenMinOscCount = _app.createDrawCall(_programs.screenMinOscCount, _vao)
-    .texture('u_min_osc_count', _textures.minOscCount)
-    .uniform('cell_size', _cellSize);
+    .texture('u_min_osc_count', _textures.minOscCount);
   _drawCalls.screenActive = _app.createDrawCall(_programs.screenActive, _vao)
     .texture('u_min_osc_count', _textures.minOscCount)
     .texture('u_active_counts', _textures.activeCounts)
-    .uniform('u_show_active_counts', 0)
-    .uniform('cell_size', _cellSize);
+    .uniform('u_show_active_counts', 0);
   _drawCalls.screenActiveCounts = _app.createDrawCall(_programs.screenActive, _vao)
     .texture('u_min_osc_count', _textures.minOscCount)
     .texture('u_active_counts', _textures.activeCounts)
-    .uniform('u_show_active_counts', 1)
-    .uniform('cell_size', _cellSize);
+    .uniform('u_show_active_counts', 1);
   _drawCalls.countActive = _app.createDrawCall(_programs.countActive, _vao)
     .texture('u_min_osc_count', _textures.minOscCount);
 
