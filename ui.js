@@ -403,8 +403,12 @@ let _pinchLastDist = 0;
 let _pinchLastCenterX = 0, _pinchLastCenterY = 0;
 let _touchStartX = 0, _touchStartY = 0;
 let _touchLastX = 0, _touchLastY = 0;
+let _touchLastTime = 0;
+let _momentumVX = 0, _momentumVY = 0;
+let _momentumActive = false;
 
 _canvasEl.addEventListener('touchstart', (e) => {
+  _momentumActive = false;
   if (e.touches.length === 2) {
     e.preventDefault();
     const dx = e.touches[0].clientX - e.touches[1].clientX;
@@ -417,6 +421,9 @@ _canvasEl.addEventListener('touchstart', (e) => {
     _touchStartY = e.touches[0].clientY;
     _touchLastX = e.touches[0].clientX;
     _touchLastY = e.touches[0].clientY;
+    _touchLastTime = performance.now();
+    _momentumVX = 0;
+    _momentumVY = 0;
     _touchMoved = false;
   }
 }, { passive: false });
@@ -466,11 +473,30 @@ _canvasEl.addEventListener('touchmove', (e) => {
     if (_touchMoved) {
       e.preventDefault();
       const dpr = window.devicePixelRatio;
-      _panX -= (e.touches[0].clientX - _touchLastX) * dpr * _zoom;
-      _panY += (e.touches[0].clientY - _touchLastY) * dpr * _zoom;
+      const moveX = e.touches[0].clientX - _touchLastX;
+      const moveY = e.touches[0].clientY - _touchLastY;
+      _panX -= moveX * dpr * _zoom;
+      _panY += moveY * dpr * _zoom;
+
+      const now = performance.now();
+      const dt = now - _touchLastTime;
+      if (dt > 0) {
+        _momentumVX = moveX / dt;
+        _momentumVY = moveY / dt;
+      }
+      _touchLastTime = now;
     }
     _touchLastX = e.touches[0].clientX;
     _touchLastY = e.touches[0].clientY;
+  }
+}, { passive: false });
+
+_canvasEl.addEventListener('touchend', (e) => {
+  if (e.touches.length === 0 && _touchMoved) {
+    const speed = Math.hypot(_momentumVX, _momentumVY);
+    if (speed > 0.15) {
+      _momentumActive = true;
+    }
   }
 }, { passive: false });
 

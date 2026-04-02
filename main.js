@@ -144,6 +144,7 @@ const _textureDescEl = document.getElementById('texture-desc');
       _genEl.innerText = _generation - 1;
     }
 
+    applyMomentum();
     draw();
 
     if (now - 1000 >= _lastFPSUpdate) {
@@ -223,6 +224,18 @@ function step() {
   _generation++;
   _xEdgeDist = Math.min(_xEdgeDist + 1, Math.floor(_universeWidth / 2) + 1);
   _yEdgeDist = Math.min(_yEdgeDist + 1, Math.floor(_universeHeight / 2) + 1);
+}
+
+function applyMomentum() {
+  if (!_momentumActive) return;
+  const dpr = window.devicePixelRatio;
+  _panX -= _momentumVX * 16 * dpr * _zoom;
+  _panY += _momentumVY * 16 * dpr * _zoom;
+  _momentumVX *= 0.95;
+  _momentumVY *= 0.95;
+  if (Math.hypot(_momentumVX, _momentumVY) < 0.01) {
+    _momentumActive = false;
+  }
 }
 
 function computeViewport() {
