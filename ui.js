@@ -402,7 +402,7 @@ let _touchMoved = false;
 let _pinchLastDist = 0;
 let _pinchLastCenterX = 0, _pinchLastCenterY = 0;
 let _touchStartX = 0, _touchStartY = 0;
-let _touchStartPanX = 0, _touchStartPanY = 0;
+let _touchLastX = 0, _touchLastY = 0;
 
 _canvasEl.addEventListener('touchstart', (e) => {
   if (e.touches.length === 2) {
@@ -415,8 +415,8 @@ _canvasEl.addEventListener('touchstart', (e) => {
   } else if (e.touches.length === 1) {
     _touchStartX = e.touches[0].clientX;
     _touchStartY = e.touches[0].clientY;
-    _touchStartPanX = _panX;
-    _touchStartPanY = _panY;
+    _touchLastX = e.touches[0].clientX;
+    _touchLastY = e.touches[0].clientY;
     _touchMoved = false;
   }
 }, { passive: false });
@@ -466,9 +466,11 @@ _canvasEl.addEventListener('touchmove', (e) => {
     if (_touchMoved) {
       e.preventDefault();
       const dpr = window.devicePixelRatio;
-      _panX = _touchStartPanX - dx * dpr * _zoom;
-      _panY = _touchStartPanY + dy * dpr * _zoom;
+      _panX -= (e.touches[0].clientX - _touchLastX) * dpr * _zoom;
+      _panY += (e.touches[0].clientY - _touchLastY) * dpr * _zoom;
     }
+    _touchLastX = e.touches[0].clientX;
+    _touchLastY = e.touches[0].clientY;
   }
 }, { passive: false });
 
