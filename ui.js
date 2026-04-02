@@ -565,6 +565,9 @@ document.getElementById('btn-close-settings').addEventListener('click', (e) => {
 
 document.getElementById('btn-defaults').addEventListener('click', (e) => {
   e.stopPropagation();
+  const needsRestart = _cellSize !== DEFAULT_CELL_SIZE
+    || _cellAliveProbability !== DEFAULT_ALIVE_PROBABILITY;
+
   _cellAliveProbability = DEFAULT_ALIVE_PROBABILITY;
   _cellSize = DEFAULT_CELL_SIZE;
   _speed = DEFAULT_SPEED;
@@ -575,9 +578,18 @@ document.getElementById('btn-defaults').addEventListener('click', (e) => {
   _hueShift = DEFAULT_HUE_SHIFT;
   _textureMode = DEFAULT_TEXTURE_MODE;
   _textureDescEl.innerText = TEXTURE_DESC[_textureMode];
+  _zoom = 1 / _cellSize;
+  _panX = _universeWidth / 2;
+  _panY = _universeHeight / 2;
   updateConfig();
-  init(true);
-  reset();
+
+  if (needsRestart) {
+    init(true);
+    reset();
+  } else {
+    draw();
+  }
+
   openSettings();
 });
 
