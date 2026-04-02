@@ -1,7 +1,7 @@
 // NOTE: This code is ugly because it's uninteresting, so as little time was spent on it as possible.
 //       The magic happens in gol-step.frag.
 
-const DEFAULT_CELL_SIZE = Math.floor(2 * window.devicePixelRatio);
+const DEFAULT_CELL_SIZE = Math.floor(2 * window.devicePixelRatio) + 1;
 
 const MAX_ENTROPY = 65536;
 const CELL_STATE_BYTES = 4;
