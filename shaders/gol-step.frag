@@ -270,7 +270,7 @@ void main() {
         p1_ease_out * 0.84
       );
       lightness = mix(
-        LIGHTNESS[3] * saturation_scale * 0.78,
+        LIGHTNESS[3] * lightness_scale * 0.62,
         LIGHTNESS_OFF * LIGHTNESS_OFF_SCALE * u_lightness_off,
         p1_ease_out * 0.84
       );
