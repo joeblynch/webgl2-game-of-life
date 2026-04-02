@@ -1,5 +1,5 @@
 #version 300 es
-precision highp float;
+precision mediump float;
 precision mediump int;
 precision mediump isampler2D;
 precision mediump usampler2D;
@@ -241,7 +241,13 @@ void main() {
           nw.r * nw.gb + n.r * n.gb + ne.r * ne.gb +
           w.r  *  w.gb +               e.r *  e.gb +
           sw.r * sw.gb + s.r * s.gb + se.r * se.gb
-        )) * 127.0);
+
+        // scale down hue sum before normalize to prevent overflow on GPUs (e.g. Galaxy Note)
+        // where built-in functions run at mediump (FP16) regardless of declared precision.
+        // max component sum is 3 * 127 = 381, so dot(v,v) can reach 290,322 which exceeds 
+        // FP16 max of 65,504. dividing by 4 keeps it safe, and since normalize only cares
+        // about direction, the result is unchanged.
+        ) / 4.0) * 127.0);
       }
 
       if (min_p == uint(0)) {
