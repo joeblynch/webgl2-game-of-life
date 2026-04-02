@@ -145,7 +145,7 @@ const _textureDescEl = document.getElementById('texture-desc');
       _lastActiveUpdate = now;
     }
 
-    if (_endedGeneration > 0 && _generation >= _endedGeneration + FADE_OUT_GENERATION_COUNT) {
+    if (_endedGeneration >= 0 && _generation >= _endedGeneration + FADE_OUT_GENERATION_COUNT) {
       reset();
     }
   });
