@@ -118,6 +118,7 @@ let _speedDownPressedAt = null;
 let _momentumVX = 0, _momentumVY = 0;
 let _momentumActive = false;
 let _underperformStart = 0;
+let _wasPaused = false;
 const _fpsEl = document.getElementById('fps');
 const _genEl = document.getElementById('gen');
 const _activeEl = document.getElementById('active');
@@ -165,7 +166,17 @@ updateSpeedDisplay();
         _lastDrawnZoom = _zoom;
         draw();
       }
+      _wasPaused = true;
       return;
+    }
+
+    // reset throttle state after unpause to avoid false auto-downgrade
+    if (_wasPaused) {
+      _wasPaused = false;
+      _stepBudget = 0;
+      _stepsThisSecond = 0;
+      _lastFPSUpdate = now;
+      _underperformStart = 0;
     }
 
     // budget-based step scheduling
@@ -434,21 +445,29 @@ function reset() {
   _panY = _universeHeight / 2;
   _zoom = 1 / _cellSize;
 
-  _entropy = generateRandomState(_maxWidth, _maxHeight);
+  // upload new random entropy in-place
+  _textures.entropy.data(generateRandomState(_maxWidth, _maxHeight));
 
-  _textures.entropy.delete();
-  _textures.entropy = _app.createTexture2D(_entropy, _maxWidth, _maxHeight, {
-    internalFormat: PicoGL.RGBA8I,
-    format: PicoGL.RGBA_INTEGER,
-    type: PicoGL.BYTE,
-    minFilter: PicoGL.NEAREST,
-    magFilter: PicoGL.NEAREST
-  });
+  // clear all simulation textures via GPU-side clearBuffer
+  const { gl } = _app;
+  const zeros_i = new Int32Array(4);
+  const zeros_u = new Uint32Array(4);
+  const zeros_f = new Float32Array(4);
 
-  // _textures.entropy.data([initialState]);
-  // _textures.state[1].data(new Int8Array(_stateHeight * _stateWidth * CELL_STATE_BYTES));
-  // _textures.history.data(new Uint32Array(_stateHeight * _stateWidth));
-  // _textures.oscCount[0].data(new Uint8Array(_stateHeight * _stateWidth * CELL_OSC_COUNT_BYTES));
+  _textures.state.forEach(t => clearTexture(gl, _offscreen, t, 'iv', zeros_i));
+  _textures.history.forEach(t => clearTexture(gl, _offscreen, t, 'uiv', zeros_u));
+  _textures.oscCounts.forEach(pair => pair.forEach(t => clearTexture(gl, _offscreen, t, 'uiv', zeros_u)));
+  clearTexture(gl, _offscreen, _textures.minOscCount, 'uiv', zeros_u);
+  clearTexture(gl, _offscreen, _textures.cellColors, 'fv', zeros_f);
+}
+
+function clearTexture(gl, framebuffer, texture, type, values) {
+  framebuffer.colorTarget(0, texture);
+  _app.drawFramebuffer(framebuffer);
+  gl.viewport(0, 0, texture.width, texture.height);
+  if (type === 'iv') gl.clearBufferiv(gl.COLOR, 0, values);
+  else if (type === 'uiv') gl.clearBufferuiv(gl.COLOR, 0, values);
+  else gl.clearBufferfv(gl.COLOR, 0, values);
 }
 
 function countActiveCells() {
