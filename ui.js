@@ -9,6 +9,34 @@ let _uiHideDelay;
 let _autoHideTimer = null;
 let _cursorOverUI = false;
 
+// Convert screen coordinates to canvas pixel coordinates, accounting for CSS rotation
+function screenToCanvas(clientX, clientY) {
+  const dpr = window.devicePixelRatio;
+  const canvas = _canvasEl;
+  if (canvas.classList.contains('landscape-left')) {
+    // rotated -90deg, origin top-left, canvas shifted down by 100%
+    // screen X maps to canvas Y, screen Y (inverted) maps to canvas X
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (rect.bottom - clientY) * dpr,
+      y: (clientX - rect.left) * dpr
+    };
+  } else if (canvas.classList.contains('landscape-right')) {
+    // rotated 90deg, origin top-left, canvas shifted right by 100%
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (clientY - rect.top) * dpr,
+      y: (rect.right - clientX) * dpr
+    };
+  } else {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (clientX - rect.left) * dpr,
+      y: (clientY - rect.top) * dpr
+    };
+  }
+}
+
 function updateLandscapeClass() {
   const canvas = document.getElementById('c');
   canvas.classList.remove('landscape-left', 'landscape-right');
@@ -309,9 +337,7 @@ _canvasEl.addEventListener('wheel', (e) => {
 
   if (e.ctrlKey) {
     // trackpad pinch-to-zoom or ctrl+scroll wheel: zoom centered on cursor
-    const rect = _canvasEl.getBoundingClientRect();
-    const canvasX = (e.clientX - rect.left) * dpr;
-    const canvasY = (e.clientY - rect.top) * dpr;
+    const { x: canvasX, y: canvasY } = screenToCanvas(e.clientX, e.clientY);
     const fracX = canvasX / _canvasWidth;
     const fracY = canvasY / _canvasHeight;
     const ux = _viewX1 + fracX * (_viewX2 - _viewX1);
@@ -386,13 +412,17 @@ _canvasEl.addEventListener('touchstart', (e) => {
     const dx = e.touches[0].clientX - e.touches[1].clientX;
     const dy = e.touches[0].clientY - e.touches[1].clientY;
     _pinchLastDist = Math.hypot(dx, dy);
-    _pinchLastCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-    _pinchLastCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    const screenCX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    const screenCY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    const { x, y } = screenToCanvas(screenCX, screenCY);
+    _pinchLastCenterX = x;
+    _pinchLastCenterY = y;
   } else if (e.touches.length === 1) {
-    _touchStartX = e.touches[0].clientX;
-    _touchStartY = e.touches[0].clientY;
-    _touchLastX = e.touches[0].clientX;
-    _touchLastY = e.touches[0].clientY;
+    const { x, y } = screenToCanvas(e.touches[0].clientX, e.touches[0].clientY);
+    _touchStartX = x;
+    _touchStartY = y;
+    _touchLastX = x;
+    _touchLastY = y;
     _touchLastTime = performance.now();
     _momentumVX = 0;
     _momentumVY = 0;
@@ -403,19 +433,18 @@ _canvasEl.addEventListener('touchstart', (e) => {
 _canvasEl.addEventListener('touchmove', (e) => {
   if (e.touches.length === 2) {
     e.preventDefault();
-    const rect = _canvasEl.getBoundingClientRect();
-    const dpr = window.devicePixelRatio;
 
-    // current pinch center and distance
-    const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-    const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    // current pinch center (in canvas pixels) and distance (screen pixels for scale)
+    const screenCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    const screenCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    const { x: curCX, y: curCY } = screenToCanvas(screenCenterX, screenCenterY);
     const dx = e.touches[0].clientX - e.touches[1].clientX;
     const dy = e.touches[0].clientY - e.touches[1].clientY;
     const dist = Math.hypot(dx, dy);
 
     // universe point under PREVIOUS pinch center (from current viewport)
-    const prevFracX = (_pinchLastCenterX - rect.left) * dpr / _canvasWidth;
-    const prevFracY = (_pinchLastCenterY - rect.top) * dpr / _canvasHeight;
+    const prevFracX = _pinchLastCenterX / _canvasWidth;
+    const prevFracY = _pinchLastCenterY / _canvasHeight;
     const curViewW = _canvasWidth * _zoom;
     const curViewH = _canvasHeight * _zoom;
     const uniX = (_panX - curViewW / 2) + prevFracX * curViewW;
@@ -426,31 +455,30 @@ _canvasEl.addEventListener('touchmove', (e) => {
     const newZoom = Math.max(1 / 40, Math.min(_zoom * scale, _maxZoom));
 
     // reposition so the same universe point is now under the CURRENT pinch center
-    const curFracX = (centerX - rect.left) * dpr / _canvasWidth;
-    const curFracY = (centerY - rect.top) * dpr / _canvasHeight;
+    const curFracX = curCX / _canvasWidth;
+    const curFracY = curCY / _canvasHeight;
     const newViewW = _canvasWidth * newZoom;
     const newViewH = _canvasHeight * newZoom;
     _panX = uniX + newViewW * (0.5 - curFracX);
     _panY = uniY + newViewH * (curFracY - 0.5);
     _zoom = newZoom;
     _pinchLastDist = dist;
-    _pinchLastCenterX = centerX;
-    _pinchLastCenterY = centerY;
-  
+    _pinchLastCenterX = curCX;
+    _pinchLastCenterY = curCY;
+
   } else if (e.touches.length === 1) {
-    const dx = e.touches[0].clientX - _touchStartX;
-    const dy = e.touches[0].clientY - _touchStartY;
+    const { x: curX, y: curY } = screenToCanvas(e.touches[0].clientX, e.touches[0].clientY);
+    const dx = curX - _touchStartX;
+    const dy = curY - _touchStartY;
     if (!_touchMoved && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
       _touchMoved = true;
     }
     if (_touchMoved) {
       e.preventDefault();
-      const dpr = window.devicePixelRatio;
-      const moveX = e.touches[0].clientX - _touchLastX;
-      const moveY = e.touches[0].clientY - _touchLastY;
-      _panX -= moveX * dpr * _zoom;
-      _panY += moveY * dpr * _zoom;
-    
+      const moveX = curX - _touchLastX;
+      const moveY = curY - _touchLastY;
+      _panX -= moveX * _zoom;
+      _panY += moveY * _zoom;
 
       const now = performance.now();
       const dt = now - _touchLastTime;
@@ -460,8 +488,8 @@ _canvasEl.addEventListener('touchmove', (e) => {
       }
       _touchLastTime = now;
     }
-    _touchLastX = e.touches[0].clientX;
-    _touchLastY = e.touches[0].clientY;
+    _touchLastX = curX;
+    _touchLastY = curY;
   }
 }, { passive: false });
 

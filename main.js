@@ -295,9 +295,8 @@ function step() {
 
 function applyMomentum() {
   if (!_momentumActive) return;
-  const dpr = window.devicePixelRatio;
-  _panX -= _momentumVX * 16 * dpr * _zoom;
-  _panY += _momentumVY * 16 * dpr * _zoom;
+  _panX -= _momentumVX * 16 * _zoom;
+  _panY += _momentumVY * 16 * _zoom;
   _momentumVX *= 0.95;
   _momentumVY *= 0.95;
   if (Math.hypot(_momentumVX, _momentumVY) < 0.01) {
