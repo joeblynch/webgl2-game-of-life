@@ -276,7 +276,8 @@
 
       .menu-popup.visible { display: block; }
 
-      .menu-popup button {
+      .menu-popup button,
+      .menu-popup a {
         display: block;
         width: 100%;
         background: none;
@@ -290,7 +291,10 @@
         touch-action: manipulation;
       }
 
-      .menu-popup button:hover { background: rgba(255, 255, 255, 0.1); }
+      .menu-popup button:hover,
+      .menu-popup a:hover { background: rgba(255, 255, 255, 0.1); }
+
+      .menu-popup a { text-decoration: none; }
 
       .menu-popup .shortcut {
         color: rgba(255, 255, 255, 0.4);
@@ -382,6 +386,7 @@
       </div>
     </div>
     <div id="menu-popup" class="menu-popup" role="menu">
+      <a href="https://github.com/joeblynch/webgl2-game-of-life" target="_blank" role="menuitem">View on GitHub</a>
       <button id="menu-install" role="menuitem" style="display:none">Add to home screen</button>
       <button id="menu-replay" role="menuitem">Replay universe <span class="shortcut">[r]</span></button>
       <button id="menu-texture" role="menuitem">Change texture <span class="shortcut">[t]/[1-8]</span></button>
