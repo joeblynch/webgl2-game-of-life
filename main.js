@@ -315,13 +315,14 @@ function applyMomentum() {
   }
 }
 
-function computeViewport() {
+function computeViewport(clamped = true) {
   const viewW = _canvasWidth * _zoom;
   const viewH = _canvasHeight * _zoom;
 
-  // clamp pan so viewport stays within max universe bounds (0..maxWidth, 0..maxHeight)
-  _panX = Math.max(viewW / 2, Math.min(_panX, _maxWidth - viewW / 2));
-  _panY = Math.max(viewH / 2, Math.min(_panY, _maxHeight - viewH / 2));
+  if (clamped) {
+    _panX = Math.max(viewW / 2, Math.min(_panX, _maxWidth - viewW / 2));
+    _panY = Math.max(viewH / 2, Math.min(_panY, _maxHeight - viewH / 2));
+  }
 
   _viewX1 = _panX - viewW / 2;
   _viewY1 = _panY - viewH / 2;
@@ -374,9 +375,10 @@ function maybeExpandUniverse() {
 }
 
 function draw() {
-  computeViewport();
+  // unclamped so maybeExpandUniverse sees the full pan extent past current bounds
+  computeViewport(false);
   maybeExpandUniverse();
-  computeViewport();  // recompute after expansion may have adjusted pan
+  computeViewport();
 
   const frontIndex = (_generation + (_generation < 0 ? 2 : 0)) % 2;
 
