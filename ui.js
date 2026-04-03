@@ -212,9 +212,8 @@ function toggleStatus() {
 
 function syncMenuStatus() {
   const hidden = document.body.classList.contains('hide-status');
-  document.getElementById('menu-status').textContent = hidden
-    ? 'Show status [s]'
-    : 'Hide status [s]';
+  document.getElementById('menu-status').innerHTML = (hidden ? 'Show status' : 'Hide status')
+    + ' <span class="shortcut">[s]</span>';
 }
 
 // ─── Keyboard handler (moved from main.js) ───
