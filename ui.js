@@ -9,32 +9,38 @@ let _uiHideDelay;
 let _autoHideTimer = null;
 let _cursorOverUI = false;
 
-// Convert screen coordinates to canvas pixel coordinates, accounting for CSS rotation
+// Convert screen coordinates to canvas pixel coordinates, accounting for CSS rotation.
+// Check computed transform rather than class names, since classes are added based on
+// orientation but CSS rotation only applies under specific media queries.
 function screenToCanvas(clientX, clientY) {
   const dpr = window.devicePixelRatio;
-  const canvas = _canvasEl;
-  if (canvas.classList.contains('landscape-left')) {
-    // rotated -90deg, origin top-left, canvas shifted down by 100%
-    // screen X maps to canvas Y, screen Y (inverted) maps to canvas X
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: (rect.bottom - clientY) * dpr,
-      y: (clientX - rect.left) * dpr
-    };
-  } else if (canvas.classList.contains('landscape-right')) {
-    // rotated 90deg, origin top-left, canvas shifted right by 100%
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: (clientY - rect.top) * dpr,
-      y: (rect.right - clientX) * dpr
-    };
-  } else {
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: (clientX - rect.left) * dpr,
-      y: (clientY - rect.top) * dpr
-    };
+  const rect = _canvasEl.getBoundingClientRect();
+  const style = getComputedStyle(_canvasEl);
+  const transform = style.transform;
+
+  // detect actual CSS rotation from the computed transform matrix
+  if (transform && transform !== 'none') {
+    const m = new DOMMatrix(transform);
+    const angle = Math.round(Math.atan2(m.b, m.a) * 180 / Math.PI);
+    if (angle === -90 || angle === 270) {
+      // landscape-left: rotated -90deg
+      return {
+        x: (rect.bottom - clientY) * dpr,
+        y: (clientX - rect.left) * dpr
+      };
+    } else if (angle === 90) {
+      // landscape-right: rotated 90deg
+      return {
+        x: (clientY - rect.top) * dpr,
+        y: (rect.right - clientX) * dpr
+      };
+    }
   }
+
+  return {
+    x: (clientX - rect.left) * dpr,
+    y: (clientY - rect.top) * dpr
+  };
 }
 
 function updateLandscapeClass() {
@@ -360,8 +366,8 @@ _canvasEl.addEventListener('wheel', (e) => {
 
 // ─── Mouse drag to pan ───
 
-let _dragStartX = 0, _dragStartY = 0;
-let _dragStartPanX = 0, _dragStartPanY = 0;
+let _mouseStartX = 0, _mouseStartY = 0;
+let _mouseLastX = 0, _mouseLastY = 0;
 let _isDragging = false;
 let _mouseMoved = false;
 
@@ -369,26 +375,30 @@ _canvasEl.addEventListener('mousedown', (e) => {
   if (e.button === 0) {
     _isDragging = true;
     _mouseMoved = false;
-    _dragStartX = e.clientX;
-    _dragStartY = e.clientY;
-    _dragStartPanX = _panX;
-    _dragStartPanY = _panY;
+    const { x, y } = screenToCanvas(e.clientX, e.clientY);
+    _mouseStartX = x;
+    _mouseStartY = y;
+    _mouseLastX = x;
+    _mouseLastY = y;
   }
 });
 
 document.addEventListener('mousemove', (e) => {
   if (!_isDragging) return;
-  const dx = e.clientX - _dragStartX;
-  const dy = e.clientY - _dragStartY;
+  const { x, y } = screenToCanvas(e.clientX, e.clientY);
+  const dx = x - _mouseStartX;
+  const dy = y - _mouseStartY;
   if (!_mouseMoved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
     _mouseMoved = true;
   }
   if (_mouseMoved) {
-    const dpr = window.devicePixelRatio;
-    _panX = _dragStartPanX - dx * dpr * _zoom;
-    _panY = _dragStartPanY + dy * dpr * _zoom;
-  
+    const moveX = x - _mouseLastX;
+    const moveY = y - _mouseLastY;
+    _panX -= moveX * _zoom;
+    _panY += moveY * _zoom;
   }
+  _mouseLastX = x;
+  _mouseLastY = y;
 });
 
 document.addEventListener('mouseup', () => {
