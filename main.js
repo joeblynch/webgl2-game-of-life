@@ -488,7 +488,13 @@ function getActiveCells() {
   let active = 0;
 
   countActiveCells();
-  
+
+  // only read back the 16x16 blocks that overlap the current universe
+  const readX = Math.ceil((_universeOffsetX + _universeWidth) / 16);
+  const readY = Math.ceil((_universeOffsetY + _universeHeight) / 16);
+  const skipX = Math.floor(_universeOffsetX / 16);
+  const skipY = Math.floor(_universeOffsetY / 16);
+
   // read the active counts back from the GPU
   const { framebuffer } = _activeFramebuffer;
 
@@ -497,15 +503,14 @@ function getActiveCells() {
 
   // TODO: for some reason, firefox on mac only supports RGBA_INTEGER/UNSIGNED_INT (min spec), instead of
   //       RED_INTEGER/UNSIGNED_BYTE, so this read transfers 16x more data than is actually needed
-  // const start = performance.now();
-  gl.readPixels(0, 0, _activeWidth, _activeHeight, PicoGL.RGBA_INTEGER, PicoGL.UNSIGNED_INT, _activeCounts);
-  // console.log(performance.now() - start);
+  gl.readPixels(skipX, skipY, readX - skipX, readY - skipY, PicoGL.RGBA_INTEGER, PicoGL.UNSIGNED_INT, _activeCounts);
 
   // manually clear the read framebuffer, otherwise chrome flashes between the last 3 states after resizing
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
 
-  // sum the active blocks
-  for (let i = 0, l = _activeCounts.length; i < l; i++) {
+  // sum only the universe-covering blocks
+  const len = (readX - skipX) * (readY - skipY) * 4;
+  for (let i = 0; i < len; i++) {
     active += _activeCounts[i];
   }
 
