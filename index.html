@@ -126,21 +126,21 @@
         margin-right: 8px;
       }
 
-      .speed-control {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 0;
-        margin: 0 4px;
-      }
-
-      .speed-control .speed-label {
+      .ui-label {
         font-size: 9px;
         color: rgba(255, 255, 255, 0.5);
         text-transform: uppercase;
         letter-spacing: 1px;
         line-height: 1;
         margin-bottom: 2px;
+      }
+
+      .speed-control {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0;
+        margin: 0 4px;
       }
 
       .speed-control .speed-row {
@@ -159,19 +159,35 @@
 
       .toolbar-gap { flex: 1; }
 
-      .toolbar-stats {
+      .mode-toggles {
         display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-        gap: 1px;
-        margin-right: 8px;
-        font-size: 10px;
-        color: rgba(255, 255, 255, 0.6);
-        font-family: Consolas, Menlo, monospace;
-        white-space: nowrap;
+        gap: 8px;
+        margin: 0 8px;
       }
 
-      .toolbar-stats span { color: #af0; }
+      .mode-toggle {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0;
+      }
+
+      .mode-buttons {
+        display: flex;
+        gap: 2px;
+      }
+
+      .mode-btn {
+        min-width: 36px;
+        min-height: 36px;
+        font-size: 16px;
+        opacity: 0.4;
+      }
+
+      .mode-btn.active {
+        opacity: 1;
+        border-color: #af0;
+      }
 
       .settings-drawer {
         position: fixed;
@@ -364,18 +380,23 @@
       <div class="toolbar-buttons">
         <button id="btn-play" title="Play / Pause [space]">⏸︎</button>
         <div class="speed-control">
-          <span class="speed-label">speed</span>
+          <span class="ui-label">speed</span>
           <div class="speed-row">
             <button id="btn-slower" title="Slower [↓/−]">−</button>
             <span id="speed-display" class="speed-display"></span>
             <button id="btn-faster" title="Faster [↑/+]">+</button>
           </div>
         </div>
-        <div class="toolbar-gap"></div>
-        <div class="toolbar-stats">
-          <div>gen <span id="toolbar-gen">-2</span></div>
-          <div>active <span id="toolbar-active">0</span></div>
+        <div class="mode-toggles">
+          <div class="mode-toggle">
+            <span class="ui-label">observer</span>
+            <div class="mode-buttons">
+              <button id="btn-observer-touch" class="mode-btn active" title="Touch observer">👆</button>
+              <button id="btn-observer-eye" class="mode-btn" title="Eye observer">👁️</button>
+            </div>
+          </div>
         </div>
+        <div class="toolbar-gap"></div>
         <button id="btn-reset" title="Reload [shift+r]">↻</button>
         <button id="btn-fullscreen" title="Fullscreen [f]">⛶</button>
         <button id="btn-menu" title="Menu" aria-expanded="false" aria-haspopup="true">☰</button>
@@ -398,7 +419,6 @@
       <label>Dead saturation <input type="range" id="range-sat-off" min="0" max="1" step="0.005"> <span id="val-sat-off"></span></label>
       <label>Alive brightness <input type="range" id="range-li-on" min="0" max="1" step="0.005"> <span id="val-li-on"></span></label>
       <label>Alive saturation <input type="range" id="range-sat-on" min="0" max="1" step="0.005"> <span id="val-sat-on"></span></label>
-      <label>Oscillator hue shift <input type="range" id="range-hue-shift" min="0" max="10" step="0.1"> <span id="val-hue-shift"></span></label>
       <label>Starting cell size <input type="range" id="range-cell-size" min="1" max="20" step="1"> <span id="val-cell-size"></span></label>
       <label>Alive % <input type="range" id="range-alive" min="0" max="1" step="0.01"> <span id="val-alive"></span></label>
       <div class="settings-footer">
@@ -408,7 +428,6 @@
     <div id="texture-desc"></div>
     <div id="status-overlay">
       <div>fps <span id="fps">0</span></div>
-      <div>gen <span id="gen">0</span></div>
       <div>active <span id="active">0</span></div>
     </div>
     <script src="lib/picogl.min.js"></script>

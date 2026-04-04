@@ -43,6 +43,15 @@ function screenToCanvas(clientX, clientY) {
   };
 }
 
+// Convert screen coordinates to texture-space coordinates
+function screenToTexture(clientX, clientY) {
+  const { x, y } = screenToCanvas(clientX, clientY);
+  return {
+    x: Math.floor(_viewX1 + (x / _canvasWidth) * (_viewX2 - _viewX1)),
+    y: Math.floor(_viewY2 - (y / _canvasHeight) * (_viewY2 - _viewY1))
+  };
+}
+
 function updateLandscapeClass() {
   const canvas = document.getElementById('c');
   canvas.classList.remove('landscape-left', 'landscape-right');
@@ -72,7 +81,6 @@ function updateConfig() {
   options.satOff = _saturation_off.toPrecision(3);
   options.liOn = _lightness_on.toPrecision(3);
   options.liOff = _lightness_off.toPrecision(3);
-  options.hueShift = _hueShift.toPrecision(2);
   options.texture = _textureMode;
   if (_uiHideDelay !== 3000) {
     options.uiHide = _uiHideDelay / 1000;
@@ -95,7 +103,6 @@ function saveConfig() {
       satOff: parseFloat(_saturation_off.toPrecision(3)),
       liOn: parseFloat(_lightness_on.toPrecision(3)),
       liOff: parseFloat(_lightness_off.toPrecision(3)),
-      hueShift: parseFloat(_hueShift.toPrecision(2)),
       texture: _textureMode
     }));
   } catch (e) {}
@@ -170,8 +177,6 @@ function openSettings() {
   document.getElementById('val-li-on').innerText = _lightness_on.toPrecision(3);
   document.getElementById('range-sat-on').value = _saturation_on;
   document.getElementById('val-sat-on').innerText = _saturation_on.toPrecision(3);
-  document.getElementById('range-hue-shift').value = _hueShift;
-  document.getElementById('val-hue-shift').innerText = _hueShift.toPrecision(2);
   document.getElementById('range-cell-size').value = _cellSize;
   document.getElementById('val-cell-size').innerText = _cellSize;
   document.getElementById('range-alive').value = _cellAliveProbability;
@@ -276,8 +281,6 @@ document.addEventListener('keydown', (e) => {
         reset();
       } else {
         _generation = START_GENERATION;
-        _xEdgeDist = START_GENERATION + 1;
-        _yEdgeDist = START_GENERATION + 1;
         _endedGeneration = -1;
       }
       break;
@@ -380,10 +383,18 @@ _canvasEl.addEventListener('mousedown', (e) => {
     _mouseStartY = y;
     _mouseLastX = x;
     _mouseLastY = y;
+    const tex = screenToTexture(e.clientX, e.clientY);
+    _touchTexX = tex.x;
+    _touchTexY = tex.y;
   }
 });
 
 document.addEventListener('mousemove', (e) => {
+  // update touch position for observer/entropy in touch mode
+  const tex = screenToTexture(e.clientX, e.clientY);
+  _touchTexX = tex.x;
+  _touchTexY = tex.y;
+
   if (!_isDragging) return;
   const { x, y } = screenToCanvas(e.clientX, e.clientY);
   const dx = x - _mouseStartX;
@@ -403,6 +414,8 @@ document.addEventListener('mousemove', (e) => {
 
 document.addEventListener('mouseup', () => {
   _isDragging = false;
+  _touchTexX = -1;
+  _touchTexY = -1;
 });
 
 // ─── Touch: tap to toggle toolbar, drag to pan, pinch to zoom ───
@@ -413,6 +426,7 @@ let _pinchLastCenterX = 0, _pinchLastCenterY = 0;
 let _touchStartX = 0, _touchStartY = 0;
 let _touchLastX = 0, _touchLastY = 0;
 let _touchLastTime = 0;
+let _touchDragMode = false;
 
 _canvasEl.addEventListener('touchstart', (e) => {
   _momentumActive = false;
@@ -436,6 +450,12 @@ _canvasEl.addEventListener('touchstart', (e) => {
     _momentumVX = 0;
     _momentumVY = 0;
     _touchMoved = false;
+    const tex = screenToTexture(e.touches[0].clientX, e.touches[0].clientY);
+    _touchTexX = tex.x;
+    _touchTexY = tex.y;
+    const cell = readCellState(tex.x, tex.y);
+    const isCellNull = cell.g === 0 && cell.b === 0;
+    _touchDragMode = !isCellNull;
   }
 }, { passive: false });
 
@@ -482,7 +502,7 @@ _canvasEl.addEventListener('touchmove', (e) => {
     if (!_touchMoved && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
       _touchMoved = true;
     }
-    if (_touchMoved) {
+    if (_touchMoved && _touchDragMode) {
       e.preventDefault();
       const moveX = curX - _touchLastX;
       const moveY = curY - _touchLastY;
@@ -499,15 +519,25 @@ _canvasEl.addEventListener('touchmove', (e) => {
     }
     _touchLastX = curX;
     _touchLastY = curY;
+    if (!_touchDragMode) {
+      const tex = screenToTexture(e.touches[0].clientX, e.touches[0].clientY);
+      _touchTexX = tex.x;
+      _touchTexY = tex.y;
+    }
   }
 }, { passive: false });
 
 _canvasEl.addEventListener('touchend', (e) => {
-  if (e.touches.length === 0 && _touchMoved) {
-    const speed = Math.hypot(_momentumVX, _momentumVY);
-    if (speed > 0.15) {
-      _momentumActive = true;
+  if (e.touches.length === 0) {
+    _touchTexX = -1;
+    _touchTexY = -1;
+    if (_touchMoved && _touchDragMode) {
+      const speed = Math.hypot(_momentumVX, _momentumVY);
+      if (speed > 0.15) {
+        _momentumActive = true;
+      }
     }
+    _touchDragMode = false;
   }
 }, { passive: false });
 
@@ -623,6 +653,27 @@ document.getElementById('btn-fullscreen').addEventListener('click', (e) => {
   resetAutoHide();
 });
 
+// ─── Observer/entropy mode toggles ───
+
+function setModeButton(groupPrefix, mode) {
+  document.getElementById(groupPrefix + '-touch').classList.toggle('active', mode === 'touch');
+  document.getElementById(groupPrefix + '-eye').classList.toggle('active', mode === 'eye');
+}
+
+document.getElementById('btn-observer-touch').addEventListener('click', (e) => {
+  e.stopPropagation();
+  _observerMode = 'touch';
+  setModeButton('btn-observer', 'touch');
+  resetAutoHide();
+});
+
+document.getElementById('btn-observer-eye').addEventListener('click', (e) => {
+  e.stopPropagation();
+  _observerMode = 'eye';
+  setModeButton('btn-observer', 'eye');
+  resetAutoHide();
+});
+
 // ─── Hamburger menu ───
 
 document.getElementById('btn-menu').addEventListener('click', (e) => {
@@ -637,8 +688,6 @@ document.getElementById('btn-menu').addEventListener('click', (e) => {
 document.getElementById('menu-replay').addEventListener('click', (e) => {
   e.stopPropagation();
   _generation = START_GENERATION;
-  _xEdgeDist = START_GENERATION + 1;
-  _yEdgeDist = START_GENERATION + 1;
   _endedGeneration = -1;
   closeMenu();
 });
@@ -715,12 +764,11 @@ document.getElementById('btn-defaults').addEventListener('click', (e) => {
   _saturation_off = DEFAULT_SATURATION_OFF;
   _lightness_on = DEFAULT_LIGHTNESS_ON;
   _lightness_off = DEFAULT_LIGHTNESS_OFF;
-  _hueShift = DEFAULT_HUE_SHIFT;
   _textureMode = DEFAULT_TEXTURE_MODE;
   _textureDescEl.innerText = TEXTURE_DESC[_textureMode];
   _zoom = 1 / _cellSize;
-  _panX = _universeWidth / 2;
-  _panY = _universeHeight / 2;
+  _panX = _maxWidth / 2;
+  _panY = _maxHeight / 2;
 
   updateConfig();
 
@@ -770,12 +818,6 @@ bindSlider('sat-on',
   () => _saturation_on,
   (v) => { _saturation_on = v; },
   (v) => v.toPrecision(3)
-);
-
-bindSlider('hue-shift',
-  () => _hueShift,
-  (v) => { _hueShift = v; },
-  (v) => v.toPrecision(2)
 );
 
 bindSlider('cell-size',

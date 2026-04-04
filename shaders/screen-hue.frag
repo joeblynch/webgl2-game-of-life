@@ -6,8 +6,6 @@ precision mediump isampler2D;
 uniform isampler2D u_state;
 uniform float u_view_x1, u_view_y1, u_view_x2, u_view_y2;
 uniform float u_canvas_w, u_canvas_h;
-uniform int u_universe_offset_x, u_universe_offset_y;
-uniform int u_universe_w, u_universe_h;
 
 layout(location=0) out vec4 frag_color;
 
@@ -23,8 +21,9 @@ void main() {
   vec2 uv = gl_FragCoord.xy / vec2(u_canvas_w, u_canvas_h);
   vec2 state_coord = vec2(mix(u_view_x1, u_view_x2, uv.x), mix(u_view_y1, u_view_y2, uv.y));
   ivec2 cell_coord = ivec2(floor(state_coord));
+  ivec2 tex_size = textureSize(u_state, 0);
 
-  if (cell_coord.x < 0 || cell_coord.y < 0 || cell_coord.x >= u_universe_w || cell_coord.y >= u_universe_h) {
+  if (cell_coord.x < 0 || cell_coord.y < 0 || cell_coord.x >= tex_size.x || cell_coord.y >= tex_size.y) {
     frag_color = vec4(0.0, 0.0, 0.0, 1.0);
     return;
   }
@@ -39,8 +38,7 @@ void main() {
     }
   }
 
-  ivec2 texel = cell_coord + ivec2(u_universe_offset_x, u_universe_offset_y);
-  ivec4 cell = texelFetch(u_state, texel, 0);
+  ivec4 cell = texelFetch(u_state, cell_coord, 0);
 
   ivec2 hue_vec = cell.gb;
   float hue_deg = atan(float(hue_vec.y), float(hue_vec.x)) * RAD_TO_DEG;

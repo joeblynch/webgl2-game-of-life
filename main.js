@@ -8,7 +8,6 @@ const DEFAULT_SATURATION_ON = 0.98;
 const DEFAULT_SATURATION_OFF = 1.0;
 const DEFAULT_LIGHTNESS_ON = 0.76;
 const DEFAULT_LIGHTNESS_OFF = 0.015;
-const DEFAULT_HUE_SHIFT = 2.0;
 const DEFAULT_TEXTURE_MODE = 0;
 
 const MAX_ENTROPY = 65536;
@@ -72,7 +71,6 @@ let _saturation_on = typeof options.satOn === 'number' ? options.satOn : DEFAULT
 let _saturation_off = typeof options.satOff === 'number' ? options.satOff : DEFAULT_SATURATION_OFF;
 let _lightness_on = typeof options.liOn === 'number' ? options.liOn : DEFAULT_LIGHTNESS_ON;
 let _lightness_off = typeof options.liOff === 'number' ? options.liOff : DEFAULT_LIGHTNESS_OFF;
-let _hueShift = typeof options.hueShift === 'number' ? options.hueShift : DEFAULT_HUE_SHIFT;
 let _textureMode = options.texture >= 0 && options.texture < TEXTURE_MODES.length ? options.texture : DEFAULT_TEXTURE_MODE;
 let _gridWidth = options.width > 0 ? Math.floor(options.width) : 0;
 let _gridHeight = options.height > 0 ? Math.floor(options.height) : 0;
@@ -85,19 +83,20 @@ let _stateWidth;
 let _stateHeight;
 let _maxWidth;
 let _maxHeight;
-let _universeWidth;
-let _universeHeight;
-let _universeOffsetX;
-let _universeOffsetY;
 let _canvasWidth;
 let _canvasHeight;
 let _activeWidth;
 let _activeHeight;
 let _activeFramebuffer;
+let _readFramebuffer;
 let _generation = START_GENERATION;
-let _xEdgeDist = START_GENERATION + 1;
-let _yEdgeDist = START_GENERATION + 1;
+let _observerMode = 'touch';
+let _entropyMode = 'eye';
+let _observerX1 = -1, _observerY1 = -1, _observerX2 = -1, _observerY2 = -1;
+let _touchTexX = -1, _touchTexY = -1;
+let _entropyX1, _entropyY1, _entropyX2, _entropyY2;
 let _maxGenerations = -1;
+let _maxActive = -1;
 let _lastDrawnPanX, _lastDrawnPanY, _lastDrawnZoom;
 let _entropy;
 let _zoom;
@@ -120,12 +119,9 @@ let _momentumActive = false;
 let _underperformStart = 0;
 let _wasPaused = false;
 const _fpsEl = document.getElementById('fps');
-const _genEl = document.getElementById('gen');
 const _activeEl = document.getElementById('active');
 const _textureDescEl = document.getElementById('texture-desc');
 const _speedDisplayEl = document.getElementById('speed-display');
-const _toolbarGenEl = document.getElementById('toolbar-gen');
-const _toolbarActiveEl = document.getElementById('toolbar-active');
 
 function updateSpeedDisplay() {
   const d = Math.round(_targetFPS);
@@ -179,6 +175,10 @@ updateSpeedDisplay();
       _underperformStart = 0;
     }
 
+    computeViewport();
+    computeObserver();
+    ensureEntropy();
+
     // budget-based step scheduling
     let stepped = false;
     if (deltaTime > 0 && deltaTime < 500) {  // ignore huge gaps (tab switch)
@@ -192,11 +192,6 @@ updateSpeedDisplay();
         _stepsThisSecond++;
         stepped = true;
       }
-    }
-
-    if (stepped) {
-      _genEl.innerText = _generation;
-      _toolbarGenEl.innerText = _generation;
     }
 
     applyMomentum();
@@ -231,11 +226,10 @@ updateSpeedDisplay();
       _stepsThisSecond = 0;
     }
 
-    if (now - 250 >= _lastActiveUpdate && _generation > 0 && _endedGeneration < 0) {
+    if (/*now - 100 >= _lastActiveUpdate && */_generation > 0 && _endedGeneration < 0) {
       const active = getActiveCells();
       _activeEl.innerText = active;
-      _toolbarActiveEl.innerText = active;
-      if (!active && _generation + 2 > Math.max(_universeWidth >> 1, _universeHeight >> 1)) {
+      if (!active && _maxActive > 0) {
         if (_generation > _maxGenerations) {
           _maxGenerations = _generation;
           console.log('max generations: ', _generation, _entropy);
@@ -245,6 +239,10 @@ updateSpeedDisplay();
       }
 
       _lastActiveUpdate = now;
+      
+      if (active > _maxActive) {
+        _maxActive = active;
+      }
     }
 
     if (_endedGeneration >= 0 && _generation >= _endedGeneration + FADE_OUT_GENERATION_COUNT) {
@@ -277,31 +275,80 @@ function step() {
   _offscreen.colorTarget(5, _textures.minOscCount);
   _app.drawFramebuffer(_offscreen);
 
-  // TODO: probably a lot more performant to use an uniform buffer object
   _drawCalls.golStep.uniform('u_saturation_on', _saturation_on);
   _drawCalls.golStep.uniform('u_saturation_off', _saturation_off);
   _drawCalls.golStep.uniform('u_lightness_on', _lightness_on);
   _drawCalls.golStep.uniform('u_lightness_off', _lightness_off);
-  _drawCalls.golStep.uniform('u_hue_shift', _hueShift);
   _drawCalls.golStep.uniform('u_existence', existence);
-  _drawCalls.golStep.uniform('u_universe_offset_x', _universeOffsetX);
-  _drawCalls.golStep.uniform('u_universe_offset_y', _universeOffsetY);
-  _drawCalls.golStep.uniform('u_universe_w', _universeWidth);
-  _drawCalls.golStep.uniform('u_universe_h', _universeHeight);
-  _drawCalls.golStep.uniform('u_x_edge_dist', _xEdgeDist);
-  _drawCalls.golStep.uniform('u_y_edge_dist', _yEdgeDist);
+  _drawCalls.golStep.uniform('u_observer_x1', _observerX1);
+  _drawCalls.golStep.uniform('u_observer_y1', _observerY1);
+  _drawCalls.golStep.uniform('u_observer_x2', _observerX2);
+  _drawCalls.golStep.uniform('u_observer_y2', _observerY2);
   _drawCalls.golStep.texture('u_state', _textures.state[backIndex]);
   _drawCalls.golStep.texture('u_history', _textures.history[backIndex]);
   _drawCalls.golStep.texture('u_entropy', _textures.entropy);
   _drawCalls.golStep.texture('u_osc_count_1', _textures.oscCounts[0][backIndex]);
   _drawCalls.golStep.texture('u_osc_count_2', _textures.oscCounts[1][backIndex]);
 
-  _app.gl.viewport(_universeOffsetX, _universeOffsetY, _universeWidth, _universeHeight);
+  _app.gl.viewport(0, 0, _maxWidth, _maxHeight);
   _drawCalls.golStep.draw();
 
   _generation++;
-  _xEdgeDist = Math.min(_xEdgeDist + 1, Math.floor(_universeWidth / 2) + 1);
-  _yEdgeDist = Math.min(_yEdgeDist + 1, Math.floor(_universeHeight / 2) + 1);
+}
+
+function computeObserver() {
+  if (_observerMode === 'eye') {
+    _observerX1 = Math.max(0, Math.floor(_viewX1));
+    _observerY1 = Math.max(0, Math.floor(_viewY1));
+    _observerX2 = Math.min(_maxWidth - 1, Math.ceil(_viewX2));
+    _observerY2 = Math.min(_maxHeight - 1, Math.ceil(_viewY2));
+  } else if (_touchTexX >= 0) {
+    _observerX1 = Math.max(0, _touchTexX);
+    _observerY1 = Math.max(0, _touchTexY);
+    _observerX2 = Math.min(_maxWidth - 1, _touchTexX);
+    _observerY2 = Math.min(_maxHeight - 1, _touchTexY);
+  } else {
+    _observerX1 = _observerY1 = _observerX2 = _observerY2 = -1;
+  }
+}
+
+function ensureEntropy() {
+  const x1 = Math.max(0, Math.floor(_viewX1));
+  const y1 = Math.max(0, Math.floor(_viewY1));
+  const x2 = Math.min(_maxWidth, Math.floor(_viewX2));
+  const y2 = Math.min(_maxHeight, Math.floor(_viewY2));
+
+  const oldX1 = _entropyX1, oldY1 = _entropyY1;
+  const oldX2 = _entropyX2, oldY2 = _entropyY2;
+  const newX1 = Math.min(oldX1, x1);
+  const newY1 = Math.min(oldY1, y1);
+  const newX2 = Math.max(oldX2, x2);
+  const newY2 = Math.max(oldY2, y2);
+
+  if (newX1 === oldX1 && newY1 === oldY1 && newX2 === oldX2 && newY2 === oldY2) return;
+
+  // use a high texture unit to avoid disturbing PicoGL's cached bindings on units 0-7
+  const gl = _app.gl;
+  const tempUnit = gl.TEXTURE15;
+  const prevUnit = gl.getParameter(gl.ACTIVE_TEXTURE);
+  gl.activeTexture(tempUnit);
+  gl.bindTexture(gl.TEXTURE_2D, _textures.entropy.texture);
+
+  if (newY1 < oldY1) uploadEntropyStrip(gl, newX1, newY1, newX2 - newX1, oldY1 - newY1);
+  if (newY2 > oldY2) uploadEntropyStrip(gl, newX1, oldY2, newX2 - newX1, newY2 - oldY2);
+  if (newX1 < oldX1) uploadEntropyStrip(gl, newX1, oldY1, oldX1 - newX1, oldY2 - oldY1);
+  if (newX2 > oldX2) uploadEntropyStrip(gl, oldX2, oldY1, newX2 - oldX2, oldY2 - oldY1);
+
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  gl.activeTexture(prevUnit);
+  _entropyX1 = newX1; _entropyY1 = newY1;
+  _entropyX2 = newX2; _entropyY2 = newY2;
+}
+
+function uploadEntropyStrip(gl, x, y, w, h) {
+  if (w <= 0 || h <= 0) return;
+  const { PicoGL } = window;
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, x, y, w, h, PicoGL.RGBA_INTEGER, PicoGL.BYTE, generateRandomState(w, h));
 }
 
 function applyMomentum() {
@@ -337,47 +384,9 @@ function setViewportUniforms(dc) {
   dc.uniform('u_view_y2', _viewY2);
   dc.uniform('u_canvas_w', _canvasWidth);
   dc.uniform('u_canvas_h', _canvasHeight);
-  dc.uniform('u_universe_offset_x', _universeOffsetX);
-  dc.uniform('u_universe_offset_y', _universeOffsetY);
-  dc.uniform('u_universe_w', _universeWidth);
-  dc.uniform('u_universe_h', _universeHeight);
-}
-
-function maybeExpandUniverse() {
-  const gapLeft = Math.max(0, -_viewX1);
-  const gapRight = Math.max(0, _viewX2 - _universeWidth);
-  const gapTop = Math.max(0, _viewY2 - _universeHeight);
-  const gapBottom = Math.max(0, -_viewY1);
-  const maxGap = Math.max(gapLeft, gapRight, gapTop, gapBottom);
-  if (maxGap <= 0) return;
-
-  const expand = Math.ceil(maxGap) * 2;
-  const newW = Math.min(_universeWidth + expand, _maxWidth);
-  const newH = Math.min(_universeHeight + expand, _maxHeight);
-  if (newW === _universeWidth && newH === _universeHeight) return;
-
-  // clamp edge distances to old universe half-sizes so the event horizon re-expands
-  const oldHalfW = Math.floor(_universeWidth / 2);
-  const oldHalfH = Math.floor(_universeHeight / 2);
-  _xEdgeDist = Math.min(_xEdgeDist, oldHalfW + 1);
-  _yEdgeDist = Math.min(_yEdgeDist, oldHalfH + 1);
-
-  // adjust pan to account for universe origin shifting
-  const newOffX = Math.floor((_maxWidth - newW) / 2);
-  const newOffY = Math.floor((_maxHeight - newH) / 2);
-  _panX += _universeOffsetX - newOffX;
-  _panY += _universeOffsetY - newOffY;
-
-  _universeWidth = newW;
-  _universeHeight = newH;
-  _universeOffsetX = newOffX;
-  _universeOffsetY = newOffY;
 }
 
 function draw() {
-  // unclamped so maybeExpandUniverse sees the full pan extent past current bounds
-  computeViewport(false);
-  maybeExpandUniverse();
   computeViewport();
 
   const frontIndex = (_generation + (_generation < 0 ? 2 : 0)) % 2;
@@ -392,6 +401,7 @@ function draw() {
 
   switch (TEXTURE_MODES[_textureMode]) {
     case 'colors':
+      _drawCalls.screenColors.texture('u_cell_colors', _textures.cellColors);
       setViewportUniforms(_drawCalls.screenColors);
       _drawCalls.screenColors.draw();
       break;
@@ -434,21 +444,16 @@ function draw() {
 
 function reset() {
   _generation = START_GENERATION;
-  _xEdgeDist = START_GENERATION + 1;
-  _yEdgeDist = START_GENERATION + 1;
   _endedGeneration = -1;
-
-  // reset universe to initial size
-  _universeWidth = _stateWidth;
-  _universeHeight = _stateHeight;
-  _universeOffsetX = Math.floor((_maxWidth - _universeWidth) / 2);
-  _universeOffsetY = Math.floor((_maxHeight - _universeHeight) / 2);
-  _panX = _universeWidth / 2;
-  _panY = _universeHeight / 2;
+  _panX = _maxWidth / 2;
+  _panY = _maxHeight / 2;
   _zoom = 1 / _cellSize;
 
-  // upload new random entropy in-place
-  _textures.entropy.data(generateRandomState(_maxWidth, _maxHeight));
+  // reset entropy region to initial universe
+  _entropyX1 = (_maxWidth - _stateWidth) >> 1;
+  _entropyY1 = (_maxHeight - _stateHeight) >> 1;
+  _entropyX2 = _entropyX1 + _stateWidth;
+  _entropyY2 = _entropyY1 + _stateHeight;
 
   // clear all simulation textures via GPU-side clearBuffer
   const { gl } = _app;
@@ -461,6 +466,14 @@ function reset() {
   _textures.oscCounts.forEach(pair => pair.forEach(t => clearTexture(gl, _offscreen, t, 'uiv', zeros_u)));
   clearTexture(gl, _offscreen, _textures.minOscCount, 'uiv', zeros_u);
   clearTexture(gl, _offscreen, _textures.cellColors, 'fv', zeros_f);
+
+  // clear entropy and re-upload for initial region only
+  clearTexture(gl, _offscreen, _textures.entropy, 'iv', zeros_i);
+  const initialEntropy = generateRandomState(_stateWidth, _stateHeight);
+  gl.bindTexture(gl.TEXTURE_2D, _textures.entropy.texture);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, _entropyX1, _entropyY1, _stateWidth, _stateHeight,
+    PicoGL.RGBA_INTEGER, PicoGL.BYTE, initialEntropy);
+  gl.bindTexture(gl.TEXTURE_2D, null);
 }
 
 function clearTexture(gl, framebuffer, texture, type, values) {
@@ -484,6 +497,24 @@ function countActiveCells() {
   _drawCalls.countActive.draw();
 }
 
+function readCellState(texX, texY) {
+  const { gl } = _app;
+  const backIndex = (_generation + (_generation < 0 ? 2 : 0)) % 2;
+  const frontIndex = (backIndex + 1) % 2;
+  const stateTexture = _textures.state[frontIndex];
+
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, _readFramebuffer);
+  gl.framebufferTexture2D(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, stateTexture.texture, 0);
+  gl.readBuffer(gl.COLOR_ATTACHMENT0);
+
+  const pixel = new Int8Array(4);
+  gl.readPixels(texX, texY, 1, 1, gl.RGBA_INTEGER, gl.BYTE, pixel);
+
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+
+  return { r: pixel[0], g: pixel[1], b: pixel[2], a: pixel[3] };
+}
+
 function getActiveCells() {
   const { PicoGL } = window;
   const { gl } = _app;
@@ -491,11 +522,10 @@ function getActiveCells() {
 
   countActiveCells();
 
-  // only read back the 16x16 blocks that overlap the current universe
-  const readX = Math.ceil((_universeOffsetX + _universeWidth) / 16);
-  const readY = Math.ceil((_universeOffsetY + _universeHeight) / 16);
-  const skipX = Math.floor(_universeOffsetX / 16);
-  const skipY = Math.floor(_universeOffsetY / 16);
+  const readX = _activeWidth;
+  const readY = _activeHeight;
+  const skipX = 0;
+  const skipY = 0;
 
   // read the active counts back from the GPU
   const { framebuffer } = _activeFramebuffer;
@@ -563,13 +593,11 @@ async function init(reInit = false) {
   _maxWidth = Math.floor(width);
   _maxHeight = Math.floor(height);
 
-  // initial universe = stateWidth x stateHeight, centered in max-size texture
-  _universeWidth = _stateWidth;
-  _universeHeight = _stateHeight;
-  _universeOffsetX = Math.floor((_maxWidth - _universeWidth) / 2);
-  _universeOffsetY = Math.floor((_maxHeight - _universeHeight) / 2);
-
-  console.log(width, height, _stateWidth, _stateHeight, 'max:', _maxWidth, _maxHeight);
+  // initial entropy region = stateWidth x stateHeight, centered in max-size texture
+  _entropyX1 = (_maxWidth - _stateWidth) >> 1;
+  _entropyY1 = (_maxHeight - _stateHeight) >> 1;
+  _entropyX2 = _entropyX1 + _stateWidth;
+  _entropyY2 = _entropyY1 + _stateHeight;
 
   if (!reInit) {
     const canvasEl = document.getElementById('c');
@@ -630,6 +658,7 @@ async function init(reInit = false) {
       )
     );
 
+
     Object.assign(_programs, {
       golStep,
       screenColors,
@@ -654,15 +683,16 @@ async function init(reInit = false) {
     _textures.activeCounts.delete();
   }
 
-  const entropy = generateRandomState(_maxWidth, _maxHeight);
-
-  _textures.entropy = _app.createTexture2D(entropy, _maxWidth, _maxHeight, {
+  // create entropy texture, clear it, then upload initial region only (batch entropy model)
+  _textures.entropy = _app.createTexture2D(_maxWidth, _maxHeight, {
     internalFormat: PicoGL.RGBA8I,
     format: PicoGL.RGBA_INTEGER,
     type: PicoGL.BYTE,
     minFilter: PicoGL.NEAREST,
     magFilter: PicoGL.NEAREST
   });
+
+  const { gl } = _app;
 
   const createStateTexture = () => _app.createTexture2D(_maxWidth, _maxHeight, {
     internalFormat: PicoGL.RGBA8I,
@@ -727,8 +757,8 @@ async function init(reInit = false) {
   // initial zoom: 1 cell = _cellSize canvas pixels, so _zoom = 1/_cellSize cells per pixel
   _zoom = 1 / _cellSize;
   _maxZoom = Math.max(_maxWidth / _canvasWidth, _maxHeight / _canvasHeight);
-  _panX = _universeWidth / 2;
-  _panY = _universeHeight / 2;
+  _panX = _maxWidth / 2;
+  _panY = _maxHeight / 2;
 
   _drawCalls.golStep = _app.createDrawCall(_programs.golStep, _vao);
   _drawCalls.screenColors = _app.createDrawCall(_programs.screenColors, _vao)
@@ -753,9 +783,29 @@ async function init(reInit = false) {
   if (!reInit) {
     _offscreen = _app.createFramebuffer();
     _activeFramebuffer = _app.createFramebuffer().colorTarget(0, _textures.activeCounts);
+    _readFramebuffer = _app.gl.createFramebuffer();
   } else {
     _activeFramebuffer.colorTarget(0, _textures.activeCounts);
   }
+
+  // clear all textures to avoid lazy initialization warnings
+  const zeros_i = new Int32Array(4);
+  const zeros_u = new Uint32Array(4);
+  const zeros_f = new Float32Array(4);
+  _textures.state.forEach(t => clearTexture(gl, _offscreen, t, 'iv', zeros_i));
+  _textures.history.forEach(t => clearTexture(gl, _offscreen, t, 'uiv', zeros_u));
+  _textures.oscCounts.forEach(pair => pair.forEach(t => clearTexture(gl, _offscreen, t, 'uiv', zeros_u)));
+  clearTexture(gl, _offscreen, _textures.minOscCount, 'uiv', zeros_u);
+  clearTexture(gl, _offscreen, _textures.cellColors, 'fv', zeros_f);
+  clearTexture(gl, _offscreen, _textures.entropy, 'iv', zeros_i);
+  const initialEntropy = generateRandomState(_stateWidth, _stateHeight);
+  const prevUnit = gl.getParameter(gl.ACTIVE_TEXTURE);
+  gl.activeTexture(gl.TEXTURE15);
+  gl.bindTexture(gl.TEXTURE_2D, _textures.entropy.texture);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, _entropyX1, _entropyY1, _stateWidth, _stateHeight,
+    PicoGL.RGBA_INTEGER, PicoGL.BYTE, initialEntropy);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  gl.activeTexture(prevUnit);
 }
 
 function cleanup() {

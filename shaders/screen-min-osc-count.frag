@@ -6,8 +6,6 @@ precision mediump usampler2D;
 uniform usampler2D u_min_osc_count;
 uniform float u_view_x1, u_view_y1, u_view_x2, u_view_y2;
 uniform float u_canvas_w, u_canvas_h;
-uniform int u_universe_offset_x, u_universe_offset_y;
-uniform int u_universe_w, u_universe_h;
 
 layout(location=0) out vec4 frag_color;
 
@@ -36,8 +34,9 @@ void main() {
   vec2 uv = gl_FragCoord.xy / vec2(u_canvas_w, u_canvas_h);
   vec2 state_coord = vec2(mix(u_view_x1, u_view_x2, uv.x), mix(u_view_y1, u_view_y2, uv.y));
   ivec2 cell = ivec2(floor(state_coord));
+  ivec2 tex_size = textureSize(u_min_osc_count, 0);
 
-  if (cell.x < 0 || cell.y < 0 || cell.x >= u_universe_w || cell.y >= u_universe_h) {
+  if (cell.x < 0 || cell.y < 0 || cell.x >= tex_size.x || cell.y >= tex_size.y) {
     frag_color = vec4(0.0, 0.0, 0.0, 1.0);
     return;
   }
@@ -52,8 +51,7 @@ void main() {
     }
   }
 
-  ivec2 texel = cell + ivec2(u_universe_offset_x, u_universe_offset_y);
-  uvec4 osc = texelFetch(u_min_osc_count, texel, 0);
+  uvec4 osc = texelFetch(u_min_osc_count, cell, 0);
 
   float mult = 1.0;
   if (osc.r == uint(0)) {
