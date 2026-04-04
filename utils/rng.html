@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cryptographic Noise</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+  #hud {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    padding: 10px 14px;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    font: 11px/1.6 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    color: #8fff8f;
+    display: flex; gap: 20px; flex-wrap: wrap;
+    z-index: 10;
+    border-top: 1px solid rgba(80,255,80,0.15);
+    letter-spacing: 0.02em;
+  }
+  #hud span { white-space: nowrap; }
+  #hud .label { color: #5a8a5a; }
+  #hud .val { color: #8fff8f; }
+  #fallback-msg {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    color: #ff6666; font: 14px monospace; text-align: center;
+    z-index: 20; display: none; padding: 20px;
+    background: rgba(0,0,0,0.85); border: 1px solid #ff6666; border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"></div>
+<div id="fallback-msg"></div>
+
+<script>
+'use strict';
+
+// ─── Config ───────────────────────────────────────────────────────
+const dpr = window.devicePixelRatio || 1;
+let W = Math.round(window.innerWidth * dpr);
+let H = Math.round(window.innerHeight * dpr);
+let pixelCount = W * H;
+let bufferSize = pixelCount * 3; // RGB
+
+// ─── DOM ──────────────────────────────────────────────────────────
+const canvas  = document.getElementById('c');
+const hud     = document.getElementById('hud');
+const errEl   = document.getElementById('fallback-msg');
+
+// ─── WebGL 2 ──────────────────────────────────────────────────────
+const gl = canvas.getContext('webgl2', {
+  antialias: false, depth: false, stencil: false,
+  alpha: false, premultipliedAlpha: false,
+  preserveDrawingBuffer: false, powerPreference: 'high-performance'
+});
+
+if (!gl) {
+  errEl.textContent = 'WebGL 2 not supported on this device.';
+  errEl.style.display = 'block';
+  throw new Error('No WebGL 2');
+}
+
+canvas.width  = W;
+canvas.height = H;
+gl.viewport(0, 0, W, H);
+
+// ─── Shaders ──────────────────────────────────────────────────────
+const vsSource = `#version 300 es
+void main() {
+  // Fullscreen triangle from gl_VertexID (no buffers needed)
+  float x = float((gl_VertexID & 1) << 2);
+  float y = float((gl_VertexID & 2) << 1);
+  gl_Position = vec4(x - 1.0, y - 1.0, 0.0, 1.0);
+}`;
+
+const fsSource = `#version 300 es
+precision mediump float;
+uniform sampler2D uTex;
+out vec4 fragColor;
+void main() {
+  // Map fragment coords to UV
+  vec2 uv = gl_FragCoord.xy / vec2(textureSize(uTex, 0));
+  fragColor = texture(uTex, uv);
+}`;
+
+function compileShader(src, type) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s));
+    gl.deleteShader(s);
+    return null;
+  }
+  return s;
+}
+
+const vs = compileShader(vsSource, gl.VERTEX_SHADER);
+const fs = compileShader(fsSource, gl.FRAGMENT_SHADER);
+const prog = gl.createProgram();
+gl.attachShader(prog, vs);
+gl.attachShader(prog, fs);
+gl.linkProgram(prog);
+
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+  console.error(gl.getProgramInfoLog(prog));
+  throw new Error('Shader link failed');
+}
+
+gl.useProgram(prog);
+
+// Texture location
+const uTexLoc = gl.getUniformLocation(prog, 'uTex');
+gl.uniform1i(uTexLoc, 0);
+
+gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+
+// ─── Texture ──────────────────────────────────────────────────────
+const tex = gl.createTexture();
+gl.activeTexture(gl.TEXTURE0);
+gl.bindTexture(gl.TEXTURE_2D, tex);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+// Allocate texture storage
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8, W, H, 0, gl.RGB, gl.UNSIGNED_BYTE, null);
+
+// Empty VAO (we use gl_VertexID, no vertex attribs)
+const vao = gl.createVertexArray();
+gl.bindVertexArray(vao);
+
+// ─── Worker ──────────────────────────────────────────────────────
+const workerSource = `
+'use strict';
+const CHUNK = 65536; // crypto.getRandomValues max per call
+
+let bytesGenerated = 0;
+let lastReport = performance.now();
+
+self.onmessage = function(e) {
+  if (e.data.type === 'fill') {
+    const buf = e.data.buffer;
+    const bytes = e.data.bytes;
+    let offset = 0;
+    while (offset < bytes) {
+      const len = Math.min(CHUNK, bytes - offset);
+      crypto.getRandomValues(new Uint8Array(buf, offset, len));
+      offset += len;
+      bytesGenerated += len;
+    }
+    const now = performance.now();
+    if (now - lastReport > 500) {
+      self.postMessage({ type: 'stats', bytes: bytesGenerated });
+      bytesGenerated = 0;
+      lastReport = now;
+    }
+    self.postMessage({ type: 'frame', buffer: buf }, [buf]);
+  }
+};
+`;
+
+const blob = new Blob([workerSource], { type: 'application/javascript' });
+const workerURL = URL.createObjectURL(blob);
+const worker = new Worker(workerURL);
+
+let frontBuf = new Uint8Array(bufferSize);
+let backBuf = null;  // null while worker owns it
+let totalBytesFromWorker = 0;
+let throughputBytesPerSec = 0;
+
+worker.onmessage = function(e) {
+  if (e.data.type === 'frame') {
+    backBuf = new Uint8Array(e.data.buffer);
+  }
+  if (e.data.type === 'stats') {
+    totalBytesFromWorker += e.data.bytes;
+    throughputBytesPerSec = e.data.bytes * 2; // reported every 500ms
+  }
+};
+
+// Kick off first fill
+const initBuf = new ArrayBuffer(bufferSize);
+worker.postMessage({ type: 'fill', buffer: initBuf, bytes: bufferSize }, [initBuf]);
+
+// ─── Render Loop ─────────────────────────────────────────────────
+let frameCount = 0;
+let fps = 0;
+let lastFpsTime = performance.now();
+let lastFrameTime = performance.now();
+
+function render(now) {
+  requestAnimationFrame(render);
+
+  // FPS counter
+  frameCount++;
+  if (now - lastFpsTime >= 1000) {
+    fps = frameCount;
+    frameCount = 0;
+    lastFpsTime = now;
+  }
+
+  // Swap double buffers: back (filled by worker) becomes front, old front sent for refill
+  if (backBuf) {
+    const oldFront = frontBuf;
+    frontBuf = backBuf;
+    backBuf = null;
+    const buf = oldFront.buffer;
+    worker.postMessage({ type: 'fill', buffer: buf, bytes: bufferSize }, [buf]);
+  }
+  if (frontBuf.byteLength === bufferSize) {
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, H, gl.RGB, gl.UNSIGNED_BYTE, frontBuf);
+  }
+
+  // Draw fullscreen triangle
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+  // HUD
+  const mbps = (throughputBytesPerSec / (1024 * 1024)).toFixed(1);
+  const totalMB = (W * H * 3 / (1024 * 1024)).toFixed(1);
+
+  hud.innerHTML =
+    `<span><span class="label">RES</span> <span class="val">${W}×${H}</span></span>` +
+    `<span><span class="label">DPR</span> <span class="val">${dpr}x</span></span>` +
+    `<span><span class="label">FPS</span> <span class="val">${fps}</span></span>` +
+    `<span><span class="label">BUF</span> <span class="val">${totalMB} MB</span></span>` +
+    `<span><span class="label">RNG</span> <span class="val">${mbps} MB/s</span></span>`;
+
+  lastFrameTime = now;
+}
+
+requestAnimationFrame(render);
+
+// ─── Resize handling ─────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  W = Math.round(window.innerWidth * dpr);
+  H = Math.round(window.innerHeight * dpr);
+  pixelCount = W * H;
+  bufferSize = pixelCount * 3;
+
+  canvas.width  = W;
+  canvas.height = H;
+  gl.viewport(0, 0, W, H);
+
+  // Reallocate texture
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB8, W, H, 0, gl.RGB, gl.UNSIGNED_BYTE, null);
+
+  // Restart worker with new buffer size
+  worker.terminate();
+  const newWorker = new Worker(workerURL);
+  newWorker.onmessage = worker.onmessage;
+  newWorker.postMessage({ type: 'init', bufferSize });
+
+  frontBuf = new Uint8Array(bufferSize);
+  backBuf = null;
+  const buf = new ArrayBuffer(bufferSize);
+  newWorker.postMessage({ type: 'fill', buffer: buf, bytes: bufferSize }, [buf]);
+});
+</script>
+</body>
+</html>
