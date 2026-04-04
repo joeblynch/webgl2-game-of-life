@@ -9,9 +9,12 @@ uniform usampler2D u_min_osc_count;
 
 layout(location=0) out uvec4 active_out;
 
+const ivec4 NULL_CELL = ivec4(0);
+
 void main() {
   ivec2 tl = ivec2(gl_FragCoord.xy) << 4;
   uint active_count = uint(0);
+  uint existing_count = uint(0);
   ivec4 cell;
   uvec4 min_osc;
 
@@ -23,8 +26,10 @@ void main() {
       cell = texelFetch(u_state, p, 0);
       min_osc = texelFetch(u_min_osc_count, p, 0);
       active_count += uint(cell.r) & uint(min_osc.r == uint(0));
+      existing_count += uint(cell != NULL_CELL);
     }
   }
   
   active_out.r = active_count;
+  active_out.g = existing_count;
 }
