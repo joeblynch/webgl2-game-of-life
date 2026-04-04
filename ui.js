@@ -538,6 +538,23 @@ _canvasEl.addEventListener('touchend', (e) => {
       }
     }
     _touchDragMode = false;
+  } else {
+    // Transitioning from multi-touch to fewer touches — re-sync to remaining finger
+    const { x, y } = screenToCanvas(e.touches[0].clientX, e.touches[0].clientY);
+    _touchStartX = x;
+    _touchStartY = y;
+    _touchLastX = x;
+    _touchLastY = y;
+    _touchLastTime = performance.now();
+    _touchMoved = false;
+    _momentumVX = 0;
+    _momentumVY = 0;
+    const tex = screenToTexture(e.touches[0].clientX, e.touches[0].clientY);
+    _touchTexX = tex.x;
+    _touchTexY = tex.y;
+    const cell = readCellState(tex.x, tex.y);
+    const isCellNull = cell.g === 0 && cell.b === 0;
+    _touchDragMode = !isCellNull;
   }
 }, { passive: false });
 
