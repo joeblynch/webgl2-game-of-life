@@ -89,6 +89,7 @@ let _activeWidth;
 let _activeHeight;
 let _activeFramebuffer;
 let _readFramebuffer;
+let _clearFramebuffer;
 let _generation = START_GENERATION;
 let _observerMode = 'touch';
 let _entropyMode = 'eye';
@@ -446,9 +447,9 @@ function reset() {
   _generation = START_GENERATION;
   _endedGeneration = -1;
   _maxActive = -1;
-  _panX = _maxWidth / 2;
-  _panY = _maxHeight / 2;
-  _zoom = 1 / _cellSize;
+  // _panX = _maxWidth / 2;
+  // _panY = _maxHeight / 2;
+  // _zoom = 1 / _cellSize;
 
   // reset entropy region to initial universe
   _entropyX1 = (_maxWidth - _stateWidth) >> 1;
@@ -462,28 +463,38 @@ function reset() {
   const zeros_u = new Uint32Array(4);
   const zeros_f = new Float32Array(4);
 
-  _textures.state.forEach(t => clearTexture(gl, _offscreen, t, 'iv', zeros_i));
-  _textures.history.forEach(t => clearTexture(gl, _offscreen, t, 'uiv', zeros_u));
-  _textures.oscCounts.forEach(pair => pair.forEach(t => clearTexture(gl, _offscreen, t, 'uiv', zeros_u)));
-  clearTexture(gl, _offscreen, _textures.minOscCount, 'uiv', zeros_u);
-  clearTexture(gl, _offscreen, _textures.cellColors, 'fv', zeros_f);
+  _textures.state.forEach(t => clearTexture(gl, _clearFramebuffer, t, 'iv', zeros_i));
+  _textures.history.forEach(t => clearTexture(gl, _clearFramebuffer, t, 'uiv', zeros_u));
+  _textures.oscCounts.forEach(pair => pair.forEach(t => clearTexture(gl, _clearFramebuffer, t, 'uiv', zeros_u)));
+  clearTexture(gl, _clearFramebuffer, _textures.minOscCount, 'uiv', zeros_u);
+  clearTexture(gl, _clearFramebuffer, _textures.cellColors, 'fv', zeros_f);
 
   // clear entropy and re-upload for initial region only
-  clearTexture(gl, _offscreen, _textures.entropy, 'iv', zeros_i);
+  clearTexture(gl, _clearFramebuffer, _textures.entropy, 'iv', zeros_i);
+  _app.defaultDrawFramebuffer();
+
   const initialEntropy = generateRandomState(_stateWidth, _stateHeight);
   gl.bindTexture(gl.TEXTURE_2D, _textures.entropy.texture);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, _entropyX1, _entropyY1, _stateWidth, _stateHeight,
     PicoGL.RGBA_INTEGER, PicoGL.BYTE, initialEntropy);
   gl.bindTexture(gl.TEXTURE_2D, null);
+
+  // expand entropy to cover current viewport (pan/zoom aren't reset)
+  ensureEntropy();
 }
 
 function clearTexture(gl, framebuffer, texture, type, values) {
-  framebuffer.colorTarget(0, texture);
-  _app.drawFramebuffer(framebuffer);
+  // Use raw GL to attach only this single texture, avoiding framebuffer
+  // incompleteness when _offscreen has stale MRT attachments from step().
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, framebuffer);
+  gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture.texture, 0);
+  gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
   gl.viewport(0, 0, texture.width, texture.height);
   if (type === 'iv') gl.clearBufferiv(gl.COLOR, 0, values);
   else if (type === 'uiv') gl.clearBufferuiv(gl.COLOR, 0, values);
   else gl.clearBufferfv(gl.COLOR, 0, values);
+  gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, null, 0);
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
 }
 
 function countActiveCells() {
@@ -785,6 +796,7 @@ async function init(reInit = false) {
     _offscreen = _app.createFramebuffer();
     _activeFramebuffer = _app.createFramebuffer().colorTarget(0, _textures.activeCounts);
     _readFramebuffer = _app.gl.createFramebuffer();
+    _clearFramebuffer = _app.gl.createFramebuffer();
   } else {
     _activeFramebuffer.colorTarget(0, _textures.activeCounts);
   }
@@ -793,12 +805,14 @@ async function init(reInit = false) {
   const zeros_i = new Int32Array(4);
   const zeros_u = new Uint32Array(4);
   const zeros_f = new Float32Array(4);
-  _textures.state.forEach(t => clearTexture(gl, _offscreen, t, 'iv', zeros_i));
-  _textures.history.forEach(t => clearTexture(gl, _offscreen, t, 'uiv', zeros_u));
-  _textures.oscCounts.forEach(pair => pair.forEach(t => clearTexture(gl, _offscreen, t, 'uiv', zeros_u)));
-  clearTexture(gl, _offscreen, _textures.minOscCount, 'uiv', zeros_u);
-  clearTexture(gl, _offscreen, _textures.cellColors, 'fv', zeros_f);
-  clearTexture(gl, _offscreen, _textures.entropy, 'iv', zeros_i);
+  _textures.state.forEach(t => clearTexture(gl, _clearFramebuffer, t, 'iv', zeros_i));
+  _textures.history.forEach(t => clearTexture(gl, _clearFramebuffer, t, 'uiv', zeros_u));
+  _textures.oscCounts.forEach(pair => pair.forEach(t => clearTexture(gl, _clearFramebuffer, t, 'uiv', zeros_u)));
+  clearTexture(gl, _clearFramebuffer, _textures.minOscCount, 'uiv', zeros_u);
+  clearTexture(gl, _clearFramebuffer, _textures.cellColors, 'fv', zeros_f);
+  clearTexture(gl, _clearFramebuffer, _textures.entropy, 'iv', zeros_i);
+  _app.defaultDrawFramebuffer();
+
   const initialEntropy = generateRandomState(_stateWidth, _stateHeight);
   const prevUnit = gl.getParameter(gl.ACTIVE_TEXTURE);
   gl.activeTexture(gl.TEXTURE15);
