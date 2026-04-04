@@ -81,6 +81,8 @@ function updateConfig() {
   options.satOff = _saturation_off.toPrecision(3);
   options.liOn = _lightness_on.toPrecision(3);
   options.liOff = _lightness_off.toPrecision(3);
+  options.satEntropy = _saturation_entropy.toPrecision(3);
+  options.liEntropy = _lightness_entropy.toPrecision(3);
   options.texture = _textureMode;
   if (_uiHideDelay !== 3000) {
     options.uiHide = _uiHideDelay / 1000;
@@ -103,6 +105,8 @@ function saveConfig() {
       satOff: parseFloat(_saturation_off.toPrecision(3)),
       liOn: parseFloat(_lightness_on.toPrecision(3)),
       liOff: parseFloat(_lightness_off.toPrecision(3)),
+      satEntropy: parseFloat(_saturation_entropy.toPrecision(3)),
+      liEntropy: parseFloat(_lightness_entropy.toPrecision(3)),
       texture: _textureMode
     }));
   } catch (e) {}
@@ -177,6 +181,10 @@ function openSettings() {
   document.getElementById('val-li-on').innerText = _lightness_on.toPrecision(3);
   document.getElementById('range-sat-on').value = _saturation_on;
   document.getElementById('val-sat-on').innerText = _saturation_on.toPrecision(3);
+  document.getElementById('range-li-entropy').value = _lightness_entropy;
+  document.getElementById('val-li-entropy').innerText = _lightness_entropy.toPrecision(3);
+  document.getElementById('range-sat-entropy').value = _saturation_entropy;
+  document.getElementById('val-sat-entropy').innerText = _saturation_entropy.toPrecision(3);
   document.getElementById('range-cell-size').value = _cellSize;
   document.getElementById('val-cell-size').innerText = _cellSize;
   document.getElementById('range-alive').value = _cellAliveProbability;
@@ -780,6 +788,8 @@ document.getElementById('btn-defaults').addEventListener('click', (e) => {
   _saturation_off = DEFAULT_SATURATION_OFF;
   _lightness_on = DEFAULT_LIGHTNESS_ON;
   _lightness_off = DEFAULT_LIGHTNESS_OFF;
+  _saturation_entropy = DEFAULT_SATURATION_ENTROPY;
+  _lightness_entropy = DEFAULT_LIGHTNESS_ENTROPY;
   _textureMode = DEFAULT_TEXTURE_MODE;
   _textureDescEl.innerText = TEXTURE_DESC[_textureMode];
   _zoom = 1 / _cellSize;
@@ -833,6 +843,18 @@ bindSlider('li-on',
 bindSlider('sat-on',
   () => _saturation_on,
   (v) => { _saturation_on = v; },
+  (v) => v.toPrecision(3)
+);
+
+bindSlider('li-entropy',
+  () => _lightness_entropy,
+  (v) => { _lightness_entropy = v; },
+  (v) => v.toPrecision(3)
+);
+
+bindSlider('sat-entropy',
+  () => _saturation_entropy,
+  (v) => { _saturation_entropy = v; },
   (v) => v.toPrecision(3)
 );
 
