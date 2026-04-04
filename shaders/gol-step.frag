@@ -1,38 +1,38 @@
 #version 300 es
+// Conway's Game of Life without omnipresence
+
 precision mediump float;
 precision mediump int;
 precision mediump isampler2D;
 precision mediump usampler2D;
 
-// input user configurable multipliers for saturation and lightness of on and off cells
-uniform float u_saturation_on;
-uniform float u_saturation_off;
-uniform float u_lightness_on;
-uniform float u_lightness_off;
-
-// after the universe ends, it fades out to black. this multiplier is used to reduce cell saturation and lightness
-uniform float u_existence;
+// entropy is externally injected into the universe
+uniform isampler2D u_entropy;
 
 // the universe state, each texture pixel is a cell. red: on/off state bit, green/blue: x/y vector of cell's hue angle
 uniform isampler2D u_state;
 
+// external observer's viewport
+uniform int u_observer_x1, u_observer_y1, u_observer_x2, u_observer_y2;
+// TODO: use full set of external observer's observation points
+// uniform isampler2D u_observer;
+
 // the last 32 on/off states of each cell are remembered, to detect oscillators of up to 16P
 uniform usampler2D u_history;
-
-// entire universe soup for initial cell state is in this texture, and injected at the outer edge of the horizon
-uniform isampler2D u_entropy;
 
 // count how many times oscillators have oscillated, for the most common periods.
 // this allows us to detect "active" cells (non-oscillators), and when no active cells remain, the end of the universe
 uniform usampler2D u_osc_count_1;
 uniform usampler2D u_osc_count_2;
 
-uniform int u_universe_offset_x;  // where universe (0,0) starts in texture
-uniform int u_universe_offset_y;
-uniform int u_universe_w;         // current universe width
-uniform int u_universe_h;         // current universe height
-uniform int u_x_edge_dist;       // event horizon distance from center in X
-uniform int u_y_edge_dist;       // event horizon distance from center in Y
+// after the universe ends, it fades out to black. this multiplier is used to reduce cell saturation and lightness
+uniform float u_existence;
+
+// input user configurable multipliers for saturation and lightness of on and off cells
+uniform float u_saturation_on;
+uniform float u_saturation_off;
+uniform float u_lightness_on;
+uniform float u_lightness_off;
 
 // output the next cell state, and the new state of the cell's history and oscillator counts
 layout(location=0) out ivec4 cell_out;
@@ -46,10 +46,7 @@ layout(location=5) out uvec2 min_osc_count;
 // modified. this prevents short bursts of random oscillations from being highlighted or dimmed
 const uint MIN_OSC_LEN = uint(8);
 
-uniform float u_hue_shift;
-
 // TODO: adjustable global brightness, and adjustment at each level inc. off
-
 // saturation and lightness config for on cells, based on prior two states
 const float SATURATION[4] = float[4](
   0.98, // 001: cell is newly on, after being off for a while. it's "recharged", and at its brightest
@@ -108,15 +105,18 @@ float hue2rgb(float f1, float f2, float hue);
 vec3 hsl2rgb(vec3 hsl);
 vec3 hsl2rgb(float h, float s, float l);
 
-const float PI = 3.14159;
+// a null cell has no state, the entropy texture has a random normalized unit vector for hue angle in the gb channels
+const ivec4 NULL_CELL = ivec4(0);
+
+const float PI = 3.1415927;
 const float RAD_TO_DEG = 180.0 / PI;
 const float DEG_TO_RAD = PI / 180.0;
 const float INV_360 = 1.0 / 360.0;
 
-ivec4 getState(ivec2 local_coord, ivec2 size) {
+ivec4 getState(ivec2 coord, ivec2 size) {
   // handle the wrapping of coordinates around the torus manually, to support non-power-of-two sized universes
-  ivec2 wrapped = (local_coord + size) % size;
-  return texelFetch(u_state, wrapped + ivec2(u_universe_offset_x, u_universe_offset_y), 0);
+  ivec2 wrapped = (coord + size) % size;
+  return texelFetch(u_state, wrapped, 0);
 }
 
 uint getOscCount(uint history, uint p, uint prev_osc_count) {
@@ -131,230 +131,201 @@ uint getOscCount(uint history, uint p, uint prev_osc_count) {
   return uint(is_match) * next_increment;
 }
 
+bool is_externally_observed(ivec2 coord) {
+  //ivec4 last_cell = texelFetch(u_state, coord, 0);
+  return coord.x >= u_observer_x1 && coord.x <= u_observer_x2 && coord.y >= u_observer_y1 && coord.y <= u_observer_y2;
+}
+
+bool has_sufficient_observability(int neighbor_count) {
+  // GoL physics require full Moore neighborhood
+  return neighbor_count == 8;
+}
+
 void main() {
-  ivec2 coord = ivec2(gl_FragCoord.xy);
-  ivec2 size = ivec2(u_universe_w, u_universe_h);
-  ivec2 local = coord - ivec2(u_universe_offset_x, u_universe_offset_y);
-  ivec2 center = size >> 1;
+  // allocate outputs
   ivec4 next_cell;
   uvec4 next_history;
   uvec4 next_osc_count_1;
   uvec4 next_osc_count_2;
   uvec2 next_min_osc_count;
   float saturation, lightness;
-  ivec2 hue_vec;
-  float hue_shift = 0.0;
 
-  // lookup this cell's state as of the last generation
+  // lookup cell's last state
+  ivec2 coord = ivec2(gl_FragCoord.xy);
   ivec4 last_cell = texelFetch(u_state, coord, 0);
+  
+  // lookup neighbor state
+  ivec2 size = textureSize(u_state, 0);
+  ivec4 nw = getState(coord + ivec2(-1, -1), size);
+  ivec4 n  = getState(coord + ivec2( 0, -1), size);
+  ivec4 ne = getState(coord + ivec2( 1, -1), size);
+  ivec4 w  = getState(coord + ivec2(-1,  0), size);
+  ivec4 e  = getState(coord + ivec2( 1,  0), size);
+  ivec4 sw = getState(coord + ivec2(-1,  1), size);
+  ivec4 s  = getState(coord + ivec2( 0,  1), size);
+  ivec4 se = getState(coord + ivec2( 1,  1), size);
 
-  // figure out where the "event horizon" is, and where we are relative to it
-  // this "universe" starts as a single empty point, surrounded by an event horizon, and expands at the speed of light.
-  // we start at a generation -2, just before the universe exists, in order to inject entropy just beyond the horizon
-  int x_edge = u_x_edge_dist;
-  int y_edge = u_y_edge_dist;
+  // count neighbors that exist (have state)
+  int neighbor_count = 
+    int(nw != NULL_CELL) +
+    int(n  != NULL_CELL) +
+    int(ne != NULL_CELL) +
+    int(e  != NULL_CELL) +
+    int(se != NULL_CELL) +
+    int(s  != NULL_CELL) +
+    int(sw != NULL_CELL) +
+    int(w  != NULL_CELL);
 
-  if (
-    local.x > center.x - x_edge &&
-    local.x < center.x + x_edge &&
-    local.y > center.y - y_edge &&
-    local.y < center.y + y_edge
-  ) {
-    // this cell is inside the universe
+  if (last_cell == NULL_CELL) {
+    // I do not exist. Am I observed?
+    bool is_observed = neighbor_count > 0 || is_externally_observed(coord);
 
-    /*
-    gen -2: universe does not yet exist, event horizon is external and will push a single cell of entropy in.
-    gen -1: event horizon is entering as a single point. entropy is injected around that point.
-    gen  0: time starts and universe has a size of 1, that point steps forward using the neighboring event horizon.
-    */
+    if (is_observed) {
+      // I am observed, I will come into existence... but only if probability can collapse into state.
+      next_cell = texelFetch(u_entropy, coord, 0);
 
-    // lookup neighbor state
-    ivec4 nw = getState(local + ivec2(-1, -1), size);
-    ivec4 n  = getState(local + ivec2( 0, -1), size);
-    ivec4 ne = getState(local + ivec2( 1, -1), size);
-    ivec4 w  = getState(local + ivec2(-1,  0), size);
-    ivec4 e  = getState(local + ivec2( 1,  0), size);
-    ivec4 sw = getState(local + ivec2(-1,  1), size);
-    ivec4 s  = getState(local + ivec2( 0,  1), size);
-    ivec4 se = getState(local + ivec2( 1,  1), size);
-
-    // lookup own past
-    uvec4 last_history = texelFetch(u_history, coord, 0);
-    uvec4 last_osc_count_1 = texelFetch(u_osc_count_1, coord, 0);
-    uvec4 last_osc_count_2 = texelFetch(u_osc_count_2, coord, 0);
-
-    // standard Game of Life: born when 3 neighbors, survive when 2 or 3 neighbors
-    // calculate existence without branching
-    int neighbors = nw.r + n.r + ne.r + w.r + e.r + sw.r + s.r + se.r;
-    next_cell.r = int(neighbors == 3) | (int(neighbors == 2) & last_cell.r);
-    
-    // some other interesting variations
-    // next_cell.r = int(neighbors == 3) | int(neighbors == 4) | (int(neighbors == 2) & last_cell.r);
-    // next_cell.r = int(neighbors == 3) | int(neighbors == 1) | (int(neighbors == 2) & last_cell.r);
-    // next_cell.r = int(neighbors == 3) | int(neighbors == 5) | (int(neighbors == 2) & last_cell.r);
-
-    // update history
-    next_history.r = last_history.r << 1 | uint(next_cell.r);
-
-    // count oscillators for most frequent periods
-    // NOTE: min oscillator search MUST have increasing P value
-    next_osc_count_1[0] = getOscCount(next_history.r, OSCILLATOR_PERIODS[0], last_osc_count_1[0]);
-    next_osc_count_1[1] = getOscCount(next_history.r, OSCILLATOR_PERIODS[1], last_osc_count_1[1]);
-    next_osc_count_1[2] = getOscCount(next_history.r, OSCILLATOR_PERIODS[2], last_osc_count_1[2]);
-    next_osc_count_1[3] = getOscCount(next_history.r, OSCILLATOR_PERIODS[3], last_osc_count_1[3]);
-    next_osc_count_2[0] = getOscCount(next_history.r, OSCILLATOR_PERIODS[4], last_osc_count_2[0]);
-
-    // find min oscillator period, since a P2 is also P4, a P1 also P2, P3, etc.
-    uint max_len = uint(0);
-    uint min_p = uint(0);
-
-    for (uint i = uint(0); i < uint(5); i++) {
-      uint len = i < uint(4) ? next_osc_count_1[i] : next_osc_count_2[i - uint(4)];
-      if (len > max_len && len >= MIN_OSC_LEN) {
-        max_len = len;
-        min_p = OSCILLATOR_PERIODS[i];
+      // make the cell barely visible, as it is just came into existence
+      if (next_cell.r == 0) {
+        saturation = 0.0;
+        lightness = 0.05;
+      } else {
+        saturation = 0.6;
+        lightness = 0.2;
       }
-    }
-
-    if (min_p == uint(0)) {
-      // this is an active cell. treat active cells as "P0" oscillators, and count them like other oscillators
-      next_osc_count_2[3] = last_osc_count_2[3] + uint(1);
-      max_len = next_osc_count_2[3];
     } else {
-      // cell is an oscillator of a tracked period, reset P0 counter
-      next_osc_count_2[3] = uint(0);
+      // nothing to see here, move along.
+      next_cell = NULL_CELL;
+      saturation = 0.0;
+      lightness = 0.0;
+
+      next_osc_count_1 = uvec4(255);
+      next_osc_count_2 = uvec4(255);
     }
+  } else {
+    // I exist. With a full Moore neighborhood I can tick.
+    if (has_sufficient_observability(neighbor_count)) {
+      // standard Game of Life: born when 3 neighbors, survive when 2 or 3 neighbors
+      // calculate existence without branching
+      int alive_neighbor_count = nw.r + n.r + ne.r + w.r + e.r + sw.r + s.r + se.r;
+      next_cell.r = int(alive_neighbor_count == 3) | (int(alive_neighbor_count == 2) & last_cell.r);
 
-    // output the min oscillator period, and its count
-    next_min_osc_count.r = min_p;
-    next_min_osc_count.g = max_len;
+      // lookup own past
+      uvec4 last_history = texelFetch(u_history, coord, 0);
+      uvec4 last_osc_count_1 = texelFetch(u_osc_count_1, coord, 0);
+      uvec4 last_osc_count_2 = texelFetch(u_osc_count_2, coord, 0);
 
-    // determine color
-    hue_vec = last_cell.gb;
+      // update history
+      next_history.r = last_history.r << 1 | uint(next_cell.r);
 
-    float saturation_scale = SATURATION_ON_SCALE * u_saturation_on;
-    float lightness_scale = LIGHTNESS_ON_SCALE * u_lightness_on;
+      // count oscillators for most frequent periods
+      // NOTE: min oscillator search MUST have increasing P value
+      next_osc_count_1[0] = getOscCount(next_history.r, OSCILLATOR_PERIODS[0], last_osc_count_1[0]);
+      next_osc_count_1[1] = getOscCount(next_history.r, OSCILLATOR_PERIODS[1], last_osc_count_1[1]);
+      next_osc_count_1[2] = getOscCount(next_history.r, OSCILLATOR_PERIODS[2], last_osc_count_1[2]);
+      next_osc_count_1[3] = getOscCount(next_history.r, OSCILLATOR_PERIODS[3], last_osc_count_1[3]);
+      next_osc_count_2[0] = getOscCount(next_history.r, OSCILLATOR_PERIODS[4], last_osc_count_2[0]);
 
-    if (next_cell.r == 1) {
-      // cell is alive. skip hue inheritance for detected oscillators — their hue is shifted each
-      // generation (below), and re-inheriting from neighbors on each off→on transition would reset
-      // the accumulated shift. only active (non-oscillating) cells inherit hue when newly born.
-      if ((last_history.r & uint(1)) == uint(0) && min_p == uint(0)) {
-        // cell is newly on, so it inherits its color from its three parents
-        // calculate new hue vector by summing hue vectors of alive neighbors
-        hue_vec = ivec2(normalize(vec2(
-          nw.r * nw.gb + n.r * n.gb + ne.r * ne.gb +
-          w.r  *  w.gb +               e.r *  e.gb +
-          sw.r * sw.gb + s.r * s.gb + se.r * se.gb
+      // find min oscillator period, since a P2 is also P4, a P1 also P2, P3, etc.
+      uint max_len = uint(0);
+      uint min_p = uint(0);
 
-        // scale down hue sum before normalize to prevent overflow on GPUs (e.g. Galaxy Note)
-        // where built-in functions run at mediump (FP16) regardless of declared precision.
-        // max component sum is 3 * 127 = 381, so dot(v,v) can reach 290,322 which exceeds 
-        // FP16 max of 65,504. dividing by 4 keeps it safe, and since normalize only cares
-        // about direction, the result is unchanged.
-        ) / 4.0) * 127.0);
+      for (uint i = uint(0); i < uint(5); i++) {
+        uint len = i < uint(4) ? next_osc_count_1[i] : next_osc_count_2[i - uint(4)];
+        if (len > max_len && len >= MIN_OSC_LEN) {
+          max_len = len;
+          min_p = OSCILLATOR_PERIODS[i];
+        }
       }
 
       if (min_p == uint(0)) {
-        // no oscillator match, so this is an active cell
-        uint recent = last_history.r & uint(3);
-        saturation = SATURATION[recent] * saturation_scale;
-        lightness = LIGHTNESS[recent] * lightness_scale;
+        // this is an active cell. treat active cells as "P0" oscillators, and count them like other oscillators
+        next_osc_count_2[3] = last_osc_count_2[3] + uint(1);
+        max_len = next_osc_count_2[3];
       } else {
-        // oscillators are hue shifted at a speed relative to its P value
-        if (min_p > uint(1)) {
-          hue_shift = u_hue_shift * (float(min_p) - 1.0);
+        // cell is an oscillator of a tracked period, reset P0 counter
+        next_osc_count_2[3] = uint(0);
+      }
+
+      // output the min oscillator period, and its count
+      next_min_osc_count.r = min_p;
+      next_min_osc_count.g = max_len;
+
+      // determine color
+      next_cell.gb = last_cell.gb;
+
+      float saturation_scale = SATURATION_ON_SCALE * u_saturation_on;
+      float lightness_scale = LIGHTNESS_ON_SCALE * u_lightness_on;
+
+      if (next_cell.r == 1) {
+        // cell is alive. skip hue inheritance for detected oscillators — their hue is shifted each
+        // generation (below), and re-inheriting from neighbors on each off→on transition would reset
+        // the accumulated shift. only active (non-oscillating) cells inherit hue when newly born.
+        if ((last_history.r & uint(1)) == uint(0) && min_p == uint(0)) {
+          // cell is newly on, so it inherits its color from its three parents
+          // calculate new hue vector by summing hue vectors of alive neighbors
+          next_cell.gb = ivec2(normalize(vec2(
+            nw.r * nw.gb + n.r * n.gb + ne.r * ne.gb +
+            w.r  *  w.gb +               e.r *  e.gb +
+            sw.r * sw.gb + s.r * s.gb + se.r * se.gb
+
+          // scale down hue sum before normalize to prevent overflow on GPUs (e.g. Galaxy Note)
+          // where built-in functions run at mediump (FP16) regardless of declared precision.
+          // max component sum is 3 * 127 = 381, so dot(v,v) can reach 290,322 which exceeds 
+          // FP16 max of 65,504. dividing by 4 keeps it safe, and since normalize only cares
+          // about direction, the result is unchanged.
+          ) / 4.0) * 127.0);
         }
 
-        saturation = SATURATION_OSC[min_p] * saturation_scale;
-        lightness = LIGHTNESS_OSC[min_p] * lightness_scale;
+        if (min_p == uint(0)) {
+          // no oscillator match, so this is an active cell
+          uint recent = last_history.r & uint(3);
+          saturation = SATURATION[recent] * saturation_scale;
+          lightness = LIGHTNESS[recent] * lightness_scale;
+        } else {
+          saturation = SATURATION_OSC[min_p] * saturation_scale;
+          lightness = LIGHTNESS_OSC[min_p] * lightness_scale;
+        }
+      } else {
+        // cell is dead, hue stays the same, but ease out to the off saturation and lightness
+        next_cell.gb = last_cell.gb;
+
+        float p1_factor = min(1.0, float(next_osc_count_1[0]) / 255.0 * 4.0);
+        float p1_ease_out = p1_factor * (2.0 - p1_factor);
+
+        saturation = mix(
+          SATURATION[3] * saturation_scale * 0.78,
+          SATURATION_OFF * SATURATION_OFF_SCALE * u_saturation_off,
+          p1_ease_out * 0.84
+        );
+        lightness = mix(
+          LIGHTNESS[3] * lightness_scale * 0.62,
+          LIGHTNESS_OFF * LIGHTNESS_OFF_SCALE * u_lightness_off,
+          p1_ease_out * 0.84
+        );
       }
     } else {
-      // cell is dead, ease out to the off saturation and lightness
-      float p1_factor = min(1.0, float(next_osc_count_1[0]) / 255.0 * 4.0);
-      float p1_ease_out = p1_factor * (2.0 - p1_factor);
+      // I exist, but not with sufficient local observability to tick and change my state.
+      next_cell = last_cell;
 
-      saturation = mix(
-        SATURATION[3] * saturation_scale * 0.78,
-        SATURATION_OFF * SATURATION_OFF_SCALE * u_saturation_off,
-        p1_ease_out * 0.84
-      );
-      lightness = mix(
-        LIGHTNESS[3] * lightness_scale * 0.62,
-        LIGHTNESS_OFF * LIGHTNESS_OFF_SCALE * u_lightness_off,
-        p1_ease_out * 0.84
-      );
+      // light up the cell as it exists at the event horizon
+      if (next_cell.r == 0) {
+        saturation = 0.0;
+        lightness = 0.64;
+      } else {
+        saturation = 1.0;
+        lightness = 0.84;
+      }
     }
-  } else if (
-    ((local.x == center.x - x_edge || local.x == center.x + x_edge) &&
-      local.y >= center.y - y_edge && local.y <= center.y + y_edge) ||
-    ((local.y == center.y - y_edge || local.y == center.y + y_edge) &&
-      local.x >= center.x - x_edge && local.x <= center.x + x_edge)
-  ) {
-    // we're in the event horizon. this cell has entered the universe, and affects the state of its neighbors inside
-    // the universe. time does not tick here, because some of its neighbors are still beyond the event horizon, and
-    // are not part of the universe's state yet.
-    next_cell = last_cell;
-
-    // light up the cell as it crosses the event horizon
-    hue_vec = next_cell.gb;
-    if (next_cell.r == 0) {
-      saturation = 0.0;
-      lightness = 0.64;
-    } else {
-      saturation = 1.0;
-      lightness = 0.84;
-    }
-  } else if (
-    ((local.x == center.x - (x_edge + 1) || local.x == center.x + (x_edge + 1)) &&
-      local.y >= center.y - (y_edge + 1) && local.y <= center.y + (y_edge + 1)) ||
-    ((local.y == center.y - (y_edge + 1) || local.y == center.y + (y_edge + 1)) &&
-      local.x >= center.x - (x_edge + 1) && local.x <= center.x + (x_edge + 1))
-  ) {
-    // we're just beyond the event horizon, inject some entropy into the state grid, ready for its neighbors to
-    // interact with starting the next generation.
-    next_cell = texelFetch(u_entropy, coord, 0);
-
-    // make the cell barely visible, as it is just about to enter the event horizon
-    hue_vec = next_cell.gb;
-    if (next_cell.r == 0) {
-      saturation = 0.0;
-      lightness = 0.05;
-    } else {
-      saturation = 0.6;
-      lightness = 0.2;
-    }
-  } else {
-    // we're outside the universe. nothing to see here, move along.
-    next_cell = ivec4(0);
-
-    hue_vec = ivec2(0);
-    saturation = 0.0;
-    lightness = 0.0;
-
-    next_osc_count_1 = uvec4(255);
   }
 
-  // calculate the color from the hsl and hue shift
-  float hue_deg = atan(float(hue_vec.y), float(hue_vec.x)) * RAD_TO_DEG;
-  if (hue_shift > 0.0) {
-    vec2 shifted_hue_vec;
-    hue_deg += hue_shift;
-
-    shifted_hue_vec.x = cos(hue_deg * DEG_TO_RAD);
-    shifted_hue_vec.y = sin(hue_deg * DEG_TO_RAD);
-    hue_vec = ivec2(normalize(shifted_hue_vec) * 127.0);
-  }
-
-  next_cell.gb = hue_vec;
-
+  // calculate the color from the hsl
+  float hue_deg = atan(float(next_cell.b), float(next_cell.g)) * RAD_TO_DEG;
   if (hue_deg < 0.0) {
     hue_deg += 360.0;
   }
-  float hue = hue_deg * INV_360;
 
   // copy outputs
-  cell_color_out = vec4(hsl2rgb(hue, saturation * u_existence, lightness * u_existence), 1.0);
+  cell_color_out = vec4(hsl2rgb(hue_deg * INV_360, saturation * u_existence, lightness * u_existence), 1.0);
   cell_out = next_cell;
   history_out = next_history;
   osc_count_out_1 = next_osc_count_1;
