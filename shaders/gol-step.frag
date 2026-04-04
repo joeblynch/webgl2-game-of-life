@@ -34,8 +34,10 @@ uniform float u_existence;
 // input user configurable multipliers for saturation and lightness of on and off cells
 uniform float u_saturation_on;
 uniform float u_saturation_off;
+uniform float u_saturation_entropy;
 uniform float u_lightness_on;
 uniform float u_lightness_off;
+uniform float u_lightness_entropy;
 
 // output the next cell state, and the new state of the cell's history and oscillator counts
 layout(location=0) out ivec4 cell_out;
@@ -156,6 +158,7 @@ void main() {
   uvec4 next_osc_count_1;
   uvec4 next_osc_count_2;
   uvec2 next_min_osc_count;
+  ivec2 entropy_hue_vec;
   float saturation, lightness;
 
   // lookup cell's last state
@@ -210,8 +213,12 @@ void main() {
     } else {
       // nothing to see here, move along.
       next_cell = NULL_CELL;
-      saturation = 0.0;
-      lightness = 0.0;
+
+      // instead we'll visualize the entropy
+      ivec4 entropy = texelFetch(u_entropy, coord, 0);
+      entropy_hue_vec = entropy.gb;
+      saturation = u_saturation_entropy;
+      lightness = u_lightness_entropy;
 
       next_osc_count_1 = uvec4(255);
       next_osc_count_2 = uvec4(255);
@@ -334,7 +341,8 @@ void main() {
   }
 
   // calculate the color from the hsl
-  float hue_deg = atan(float(next_cell.b), float(next_cell.g)) * RAD_TO_DEG;
+  ivec2 hue_vec = next_cell != NULL_CELL ? next_cell.gb : entropy_hue_vec;
+  float hue_deg = atan(float(hue_vec.r), float(hue_vec.g)) * RAD_TO_DEG;
   if (hue_deg < 0.0) {
     hue_deg += 360.0;
   }
