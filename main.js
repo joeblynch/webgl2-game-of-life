@@ -445,6 +445,7 @@ function draw() {
 function reset() {
   _generation = START_GENERATION;
   _endedGeneration = -1;
+  _maxActive = -1;
   _panX = _maxWidth / 2;
   _panY = _maxHeight / 2;
   _zoom = 1 / _cellSize;
