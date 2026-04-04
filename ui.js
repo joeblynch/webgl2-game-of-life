@@ -771,8 +771,7 @@ document.getElementById('btn-close-settings').addEventListener('click', (e) => {
 
 document.getElementById('btn-defaults').addEventListener('click', (e) => {
   e.stopPropagation();
-  const needsRestart = _cellSize !== DEFAULT_CELL_SIZE
-    || _cellAliveProbability !== DEFAULT_ALIVE_PROBABILITY;
+  const needsRestart = _cellSize !== DEFAULT_CELL_SIZE;
 
   _cellAliveProbability = DEFAULT_ALIVE_PROBABILITY;
   _cellSize = DEFAULT_CELL_SIZE;
@@ -845,7 +844,7 @@ bindSlider('cell-size',
 
 bindSlider('alive',
   () => _cellAliveProbability,
-  (v) => { _cellAliveProbability = v; reset(); },
+  (v) => { _cellAliveProbability = v; },
   (v) => Math.round(v * 100) + '%'
 );
 

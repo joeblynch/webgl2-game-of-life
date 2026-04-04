@@ -276,6 +276,7 @@ function step() {
   _offscreen.colorTarget(5, _textures.minOscCount);
   _app.drawFramebuffer(_offscreen);
 
+  _drawCalls.golStep.uniform('u_alive_probability', _cellAliveProbability);
   _drawCalls.golStep.uniform('u_saturation_on', _saturation_on);
   _drawCalls.golStep.uniform('u_saturation_off', _saturation_off);
   _drawCalls.golStep.uniform('u_lightness_on', _lightness_on);
@@ -860,13 +861,6 @@ function generateRandomState(width, height) {
 
     remaining -= randLength;
     chunk++;
-  }
-
-  // convert life state to 0/1 based on probability of being alive
-  for (let i = 0; i < length; i += CELL_STATE_BYTES) {
-    // assume life state is first byte of cell bytes
-    const normalized = (state[i] + 128) / 255;
-    state[i] = normalized <= _cellAliveProbability ? 1 : 0;
   }
 
   return state;

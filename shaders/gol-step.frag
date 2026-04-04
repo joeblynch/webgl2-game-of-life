@@ -17,6 +17,9 @@ uniform int u_observer_x1, u_observer_y1, u_observer_x2, u_observer_y2;
 // TODO: use full set of external observer's observation points
 // uniform isampler2D u_observer;
 
+// odds that a cell's alive state from entropy is alive vs dead
+uniform float u_alive_probability;
+
 // the last 32 on/off states of each cell are remembered, to detect oscillators of up to 16P
 uniform usampler2D u_history;
 
@@ -108,10 +111,15 @@ vec3 hsl2rgb(float h, float s, float l);
 // a null cell has no state, the entropy texture has a random normalized unit vector for hue angle in the gb channels
 const ivec4 NULL_CELL = ivec4(0);
 
+// there's a 1 in 255^2 chance we have a null hue in the entropy data,
+const ivec2 NULL_HUE = ivec2(0);
+const ivec2 DEFAULT_HUE = ivec2(0, 255);
+
 const float PI = 3.1415927;
 const float RAD_TO_DEG = 180.0 / PI;
 const float DEG_TO_RAD = PI / 180.0;
 const float INV_360 = 1.0 / 360.0;
+const float INV_255 = 1.0 / 255.0;
 
 ivec4 getState(ivec2 coord, ivec2 size) {
   // handle the wrapping of coordinates around the torus manually, to support non-power-of-two sized universes
@@ -183,6 +191,13 @@ void main() {
     if (is_observed) {
       // I am observed, I will come into existence... but only if probability can collapse into state.
       next_cell = texelFetch(u_entropy, coord, 0);
+      if (next_cell != NULL_CELL) {
+        next_cell.r = int(float(next_cell.r + 128) * INV_255 <= u_alive_probability);
+
+        if (next_cell.gb == NULL_HUE) {
+          next_cell.gb = DEFAULT_HUE;
+        }
+      }
 
       // make the cell barely visible, as it is just came into existence
       if (next_cell.r == 0) {
