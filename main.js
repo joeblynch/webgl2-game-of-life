@@ -12,7 +12,6 @@ const DEFAULT_LIGHTNESS_OFF = 0.015;
 const DEFAULT_LIGHTNESS_ENTROPY = 0.2;
 const DEFAULT_TEXTURE_MODE = 0;
 
-const MAX_ENTROPY = 65536;
 const CELL_STATE_BYTES = 4;
 const CELL_OSC_COUNT_BYTES = 4;
 
@@ -100,6 +99,8 @@ let _entropyMode = 'eye';
 let _observerX1 = -1, _observerY1 = -1, _observerX2 = -1, _observerY2 = -1;
 let _touchTexX = -1, _touchTexY = -1;
 let _entropyX1, _entropyY1, _entropyX2, _entropyY2;
+let _entropySource;
+let _resetting = false;
 let _maxGenerations = -1;
 let _maxActive = -1;
 let _lastDrawnPanX, _lastDrawnPanY, _lastDrawnZoom;
@@ -183,6 +184,7 @@ updateSpeedDisplay();
     computeViewport();
     computeObserver();
     ensureEntropy();
+    uploadEntropy();
 
     // budget-based step scheduling
     let stepped = false;
@@ -191,7 +193,7 @@ updateSpeedDisplay();
       const stepTime = 1000 / _targetFPS;
       // cap budget to prevent spiral of death
       _stepBudget = Math.min(_stepBudget, stepTime * 10);
-      while (_stepBudget >= stepTime) {
+      while (_stepBudget >= stepTime && !_resetting) {
         step();
         _stepBudget -= stepTime;
         _stepsThisSecond++;
@@ -326,37 +328,28 @@ function ensureEntropy() {
   const x2 = Math.min(_maxWidth, Math.floor(_viewX2));
   const y2 = Math.min(_maxHeight, Math.floor(_viewY2));
 
-  const oldX1 = _entropyX1, oldY1 = _entropyY1;
-  const oldX2 = _entropyX2, oldY2 = _entropyY2;
-  const newX1 = Math.min(oldX1, x1);
-  const newY1 = Math.min(oldY1, y1);
-  const newX2 = Math.max(oldX2, x2);
-  const newY2 = Math.max(oldY2, y2);
-
-  if (newX1 === oldX1 && newY1 === oldY1 && newX2 === oldX2 && newY2 === oldY2) return;
-
-  // use a high texture unit to avoid disturbing PicoGL's cached bindings on units 0-7
-  const gl = _app.gl;
-  const tempUnit = gl.TEXTURE15;
-  const prevUnit = gl.getParameter(gl.ACTIVE_TEXTURE);
-  gl.activeTexture(tempUnit);
-  gl.bindTexture(gl.TEXTURE_2D, _textures.entropy.texture);
-
-  if (newY1 < oldY1) uploadEntropyStrip(gl, newX1, newY1, newX2 - newX1, oldY1 - newY1);
-  if (newY2 > oldY2) uploadEntropyStrip(gl, newX1, oldY2, newX2 - newX1, newY2 - oldY2);
-  if (newX1 < oldX1) uploadEntropyStrip(gl, newX1, oldY1, oldX1 - newX1, oldY2 - oldY1);
-  if (newX2 > oldX2) uploadEntropyStrip(gl, oldX2, oldY1, newX2 - oldX2, oldY2 - oldY1);
-
-  gl.bindTexture(gl.TEXTURE_2D, null);
-  gl.activeTexture(prevUnit);
-  _entropyX1 = newX1; _entropyY1 = newY1;
-  _entropyX2 = newX2; _entropyY2 = newY2;
+  _entropyX1 = Math.min(_entropyX1, x1);
+  _entropyY1 = Math.min(_entropyY1, y1);
+  _entropyX2 = Math.max(_entropyX2, x2);
+  _entropyY2 = Math.max(_entropyY2, y2);
 }
 
-function uploadEntropyStrip(gl, x, y, w, h) {
+function uploadEntropy() {
+  const w = _entropyX2 - _entropyX1;
+  const h = _entropyY2 - _entropyY1;
   if (w <= 0 || h <= 0) return;
-  const { PicoGL } = window;
-  gl.texSubImage2D(gl.TEXTURE_2D, 0, x, y, w, h, PicoGL.RGBA_INTEGER, PicoGL.BYTE, generateRandomState(w, h));
+
+  const data = _entropySource.consume(w * h * CELL_STATE_BYTES);
+  if (!data) return;
+
+  const gl = _app.gl;
+  const prevUnit = gl.getParameter(gl.ACTIVE_TEXTURE);
+  gl.activeTexture(gl.TEXTURE15);
+  gl.bindTexture(gl.TEXTURE_2D, _textures.entropy.texture);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, _entropyX1, _entropyY1, w, h,
+    PicoGL.RGBA_INTEGER, PicoGL.BYTE, data);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  gl.activeTexture(prevUnit);
 }
 
 function applyMomentum() {
@@ -450,7 +443,8 @@ function draw() {
   }
 }
 
-function reset() {
+async function reset() {
+  _resetting = true;
   _generation = START_GENERATION;
   _endedGeneration = -1;
   _maxActive = -1;
@@ -480,7 +474,7 @@ function reset() {
   clearTexture(gl, _clearFramebuffer, _textures.entropy, 'iv', zeros_i);
   _app.defaultDrawFramebuffer();
 
-  const initialEntropy = generateRandomState(_stateWidth, _stateHeight);
+  const initialEntropy = await _entropySource.consumeAsync(_stateWidth * _stateHeight * CELL_STATE_BYTES);
   gl.bindTexture(gl.TEXTURE_2D, _textures.entropy.texture);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, _entropyX1, _entropyY1, _stateWidth, _stateHeight,
     PicoGL.RGBA_INTEGER, PicoGL.BYTE, initialEntropy);
@@ -488,6 +482,7 @@ function reset() {
 
   // expand entropy to cover current viewport (pan/zoom aren't reset)
   ensureEntropy();
+  _resetting = false;
 }
 
 function clearTexture(gl, framebuffer, texture, type, values) {
@@ -711,6 +706,10 @@ async function init(reInit = false) {
     magFilter: PicoGL.NEAREST
   });
 
+  if (!_entropySource) {
+    _entropySource = new EntropySource(_maxWidth * _maxHeight * CELL_STATE_BYTES);
+  }
+
   const { gl } = _app;
 
   const createStateTexture = () => _app.createTexture2D(_maxWidth, _maxHeight, {
@@ -820,7 +819,7 @@ async function init(reInit = false) {
   clearTexture(gl, _clearFramebuffer, _textures.entropy, 'iv', zeros_i);
   _app.defaultDrawFramebuffer();
 
-  const initialEntropy = generateRandomState(_stateWidth, _stateHeight);
+  const initialEntropy = await _entropySource.consumeAsync(_stateWidth * _stateHeight * CELL_STATE_BYTES);
   const prevUnit = gl.getParameter(gl.ACTIVE_TEXTURE);
   gl.activeTexture(gl.TEXTURE15);
   gl.bindTexture(gl.TEXTURE_2D, _textures.entropy.texture);
@@ -852,23 +851,5 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') requestWakeLock();
 });
 
-function generateRandomState(width, height) {
-  const length = width * height * CELL_STATE_BYTES;
-  const state = new Int8Array(length);
-  const randBuffer = new Int8Array(MAX_ENTROPY);
-  let remaining = length;
 
-  // keep requesting random data until we've filled the state
-  let chunk = 0;
-  while (remaining) {
-    const randLength = Math.min(remaining, MAX_ENTROPY);
-    crypto.getRandomValues(randBuffer);
-    state.set(randBuffer.slice(0, randLength), chunk * MAX_ENTROPY);
-
-    remaining -= randLength;
-    chunk++;
-  }
-
-  return state;
-}
 
