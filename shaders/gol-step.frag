@@ -20,6 +20,9 @@ uniform int u_observer_x1, u_observer_y1, u_observer_x2, u_observer_y2;
 // odds that a cell's alive state from entropy is alive vs dead
 uniform float u_alive_probability;
 
+// is physics ticking inside the universe, or are we just rendering entropy fluctuations?
+uniform bool u_is_physics_ticking;
+
 // the last 32 on/off states of each cell are remembered, to detect oscillators of up to 16P
 uniform usampler2D u_history;
 
@@ -151,6 +154,25 @@ bool has_sufficient_observability(int neighbor_count) {
   return neighbor_count == 8;
 }
 
+void find_min_p(uvec4 osc_count_1, uvec4 osc_count_2, out uint min_p, out uint max_len) {
+  max_len = uint(0);
+  min_p = uint(0);
+
+  // find min oscillator period, since a P2 is also P4, a P1 also P2, P3, etc.
+  for (uint i = uint(0); i < uint(5); i++) {
+    uint len = i < uint(4) ? osc_count_1[i] : osc_count_2[i - uint(4)];
+    if (len > max_len && len >= MIN_OSC_LEN) {
+      max_len = len;
+      min_p = OSCILLATOR_PERIODS[i];
+    }
+  }
+
+  if (min_p == uint(0)) {
+    // this is an active cell. treat active cells as "P0" oscillators, and count them like other oscillators
+    max_len = osc_count_2[3] + uint(1);
+  }
+}
+
 void main() {
   // allocate outputs
   ivec4 next_cell;
@@ -158,6 +180,8 @@ void main() {
   uvec4 next_osc_count_1;
   uvec4 next_osc_count_2;
   uvec2 next_min_osc_count;
+  uint max_len;
+  uint min_p;
   ivec2 entropy_hue_vec;
   float saturation, lightness;
 
@@ -191,99 +215,86 @@ void main() {
     // I do not exist. Am I observed?
     bool is_observed = neighbor_count > 0 || is_externally_observed(coord);
 
-    if (is_observed) {
+    // If I'm observed, is physics also ticking to convert probability into state?
+    if (is_observed && u_is_physics_ticking) {
       // I am observed, I will come into existence... but only if probability can collapse into state.
-      next_cell = texelFetch(u_entropy, coord, 0);
-      if (next_cell != NULL_CELL) {
-        next_cell.r = int(float(next_cell.r + 128) * INV_255 <= u_alive_probability);
+      ivec4 entropy = texelFetch(u_entropy, coord, 0);
+      if (entropy != NULL_CELL) {
+        // collapse probability into state
+        next_cell.r = int(float(entropy.r + 128) * INV_255 <= u_alive_probability);
 
-        if (next_cell.gb == NULL_HUE) {
+        if (entropy.gb == NULL_HUE) {
           next_cell.gb = DEFAULT_HUE;
+        } else {
+          next_cell.gb = entropy.gb;
+        }
+
+        // make the cell barely visible, as it is just came into existence
+        if (next_cell.r == 0) {
+          saturation = 0.0;
+          lightness = 0.05;
+        } else {
+          saturation = 0.6;
+          lightness = 0.2;
         }
       }
-
-      // make the cell barely visible, as it is just came into existence
-      if (next_cell.r == 0) {
-        saturation = 0.0;
-        lightness = 0.05;
-      } else {
-        saturation = 0.6;
-        lightness = 0.2;
-      }
     } else {
-      // nothing to see here, move along.
       next_cell = NULL_CELL;
 
-      // instead we'll visualize the entropy
+      // TODO: is this still needed? if so, why
+      next_osc_count_1 = uvec4(255);
+      next_osc_count_2 = uvec4(255);
+    }
+    
+    if (next_cell == NULL_CELL) {
+      // no collapse into state, instead we'll visualize the entropy
       ivec4 entropy = texelFetch(u_entropy, coord, 0);
       entropy_hue_vec = entropy.gb;
       saturation = u_saturation_entropy;
       lightness = u_lightness_entropy;
-
-      next_osc_count_1 = uvec4(255);
-      next_osc_count_2 = uvec4(255);
     }
   } else {
     // I exist. With a full Moore neighborhood I can tick.
     if (has_sufficient_observability(neighbor_count)) {
-      // standard Game of Life: born when 3 neighbors, survive when 2 or 3 neighbors
-      // calculate existence without branching
-      int alive_neighbor_count = nw.r + n.r + ne.r + w.r + e.r + sw.r + s.r + se.r;
-      next_cell.r = int(alive_neighbor_count == 3) | (int(alive_neighbor_count == 2) & last_cell.r);
-
       // lookup own past
       uvec4 last_history = texelFetch(u_history, coord, 0);
       uvec4 last_osc_count_1 = texelFetch(u_osc_count_1, coord, 0);
       uvec4 last_osc_count_2 = texelFetch(u_osc_count_2, coord, 0);
 
-      // update history
-      next_history.r = last_history.r << 1 | uint(next_cell.r);
+      if (u_is_physics_ticking) {
+        // standard Game of Life: born when 3 neighbors, survive when 2 or 3 neighbors
+        // calculate existence without branching
+        int alive_neighbor_count = nw.r + n.r + ne.r + w.r + e.r + sw.r + s.r + se.r;
+        next_cell.r = int(alive_neighbor_count == 3) | (int(alive_neighbor_count == 2) & last_cell.r);
 
-      // count oscillators for most frequent periods
-      // NOTE: min oscillator search MUST have increasing P value
-      next_osc_count_1[0] = getOscCount(next_history.r, OSCILLATOR_PERIODS[0], last_osc_count_1[0]);
-      next_osc_count_1[1] = getOscCount(next_history.r, OSCILLATOR_PERIODS[1], last_osc_count_1[1]);
-      next_osc_count_1[2] = getOscCount(next_history.r, OSCILLATOR_PERIODS[2], last_osc_count_1[2]);
-      next_osc_count_1[3] = getOscCount(next_history.r, OSCILLATOR_PERIODS[3], last_osc_count_1[3]);
-      next_osc_count_2[0] = getOscCount(next_history.r, OSCILLATOR_PERIODS[4], last_osc_count_2[0]);
+        // update history
+        next_history.r = last_history.r << 1 | uint(next_cell.r);
 
-      // find min oscillator period, since a P2 is also P4, a P1 also P2, P3, etc.
-      uint max_len = uint(0);
-      uint min_p = uint(0);
+        // count oscillators for most frequent periods
+        // NOTE: min oscillator search MUST have increasing P value
+        next_osc_count_1[0] = getOscCount(next_history.r, OSCILLATOR_PERIODS[0], last_osc_count_1[0]);
+        next_osc_count_1[1] = getOscCount(next_history.r, OSCILLATOR_PERIODS[1], last_osc_count_1[1]);
+        next_osc_count_1[2] = getOscCount(next_history.r, OSCILLATOR_PERIODS[2], last_osc_count_1[2]);
+        next_osc_count_1[3] = getOscCount(next_history.r, OSCILLATOR_PERIODS[3], last_osc_count_1[3]);
+        next_osc_count_2[0] = getOscCount(next_history.r, OSCILLATOR_PERIODS[4], last_osc_count_2[0]);
 
-      for (uint i = uint(0); i < uint(5); i++) {
-        uint len = i < uint(4) ? next_osc_count_1[i] : next_osc_count_2[i - uint(4)];
-        if (len > max_len && len >= MIN_OSC_LEN) {
-          max_len = len;
-          min_p = OSCILLATOR_PERIODS[i];
+        // find min oscillator period, since a P2 is also P4, a P1 also P2, P3, etc.
+        find_min_p(next_osc_count_1, next_osc_count_2, min_p, max_len);
+
+        // output the min oscillator period, and its count
+        next_min_osc_count.r = min_p;
+        next_min_osc_count.g = max_len;
+
+        if (min_p == uint(0)) {
+          // this is an active cell. treat active cells as "P0" oscillators, and count them like other oscillators
+          next_osc_count_2[3] = max_len;
+        } else {
+          // cell is an oscillator of a tracked period, reset P0 counter
+          next_osc_count_2[3] = uint(0);
         }
-      }
 
-      if (min_p == uint(0)) {
-        // this is an active cell. treat active cells as "P0" oscillators, and count them like other oscillators
-        next_osc_count_2[3] = last_osc_count_2[3] + uint(1);
-        max_len = next_osc_count_2[3];
-      } else {
-        // cell is an oscillator of a tracked period, reset P0 counter
-        next_osc_count_2[3] = uint(0);
-      }
-
-      // output the min oscillator period, and its count
-      next_min_osc_count.r = min_p;
-      next_min_osc_count.g = max_len;
-
-      // determine color
-      next_cell.gb = last_cell.gb;
-
-      float saturation_scale = SATURATION_ON_SCALE * u_saturation_on;
-      float lightness_scale = LIGHTNESS_ON_SCALE * u_lightness_on;
-
-      if (next_cell.r == 1) {
-        // cell is alive. skip hue inheritance for detected oscillators — their hue is shifted each
-        // generation (below), and re-inheriting from neighbors on each off→on transition would reset
-        // the accumulated shift. only active (non-oscillating) cells inherit hue when newly born.
-        if ((last_history.r & uint(1)) == uint(0) && min_p == uint(0)) {
-          // cell is newly on, so it inherits its color from its three parents
+        if (next_cell.r == 1 && (last_history.r & uint(1)) == uint(0) && min_p == uint(0)) {
+          // cell is newly born, so it inherits its color from its three parents
           // calculate new hue vector by summing hue vectors of alive neighbors
           next_cell.gb = ivec2(normalize(vec2(
             nw.r * nw.gb + n.r * n.gb + ne.r * ne.gb +
@@ -296,11 +307,32 @@ void main() {
           // FP16 max of 65,504. dividing by 4 keeps it safe, and since normalize only cares
           // about direction, the result is unchanged.
           ) / 4.0) * 127.0);
+        } else {
+          // surviving this step, maintain color
+          next_cell.gb = last_cell.gb;
         }
+      } else {
+        // no physics, all state stays the same
+        next_cell = last_cell;
+        next_history = last_history;
+        next_osc_count_1 = last_osc_count_1;
+        next_osc_count_2 = last_osc_count_2;
+        
+        // find min oscillator period, since a P2 is also P4, a P1 also P2, P3, etc.
+        // this is a derived value, so we re-calculate here to avoid extra memory allocation
+        find_min_p(last_osc_count_1, last_osc_count_2, min_p, max_len);
+        next_min_osc_count.r = min_p;
+        next_min_osc_count.g = max_len;
+      }
 
+      float saturation_scale = SATURATION_ON_SCALE * u_saturation_on;
+      float lightness_scale = LIGHTNESS_ON_SCALE * u_lightness_on;
+
+      if (next_cell.r == 1) {
+        // determine color for alive cell
         if (min_p == uint(0)) {
           // no oscillator match, so this is an active cell
-          uint recent = last_history.r & uint(3);
+          uint recent = (next_history.r >> 1) & uint(3);
           saturation = SATURATION[recent] * saturation_scale;
           lightness = LIGHTNESS[recent] * lightness_scale;
         } else {
@@ -308,9 +340,7 @@ void main() {
           lightness = LIGHTNESS_OSC[min_p] * lightness_scale;
         }
       } else {
-        // cell is dead, hue stays the same, but ease out to the off saturation and lightness
-        next_cell.gb = last_cell.gb;
-
+        // cell is dead, ease out to the off saturation and lightness
         float p1_factor = min(1.0, float(next_osc_count_1[0]) / 255.0 * 4.0);
         float p1_ease_out = p1_factor * (2.0 - p1_factor);
 

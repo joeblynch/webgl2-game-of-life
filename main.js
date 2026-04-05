@@ -5,11 +5,11 @@ const DEFAULT_CELL_SIZE = Math.floor(2 * window.devicePixelRatio) + 1;
 const DEFAULT_ALIVE_PROBABILITY = 0.5;
 const DEFAULT_TARGET_FPS = 15;
 const DEFAULT_SATURATION_ON = 0.98;
-const DEFAULT_SATURATION_OFF = 1.0;
-const DEFAULT_SATURATION_ENTROPY = 0.8;
 const DEFAULT_LIGHTNESS_ON = 0.76;
+const DEFAULT_SATURATION_OFF = 1.0;
 const DEFAULT_LIGHTNESS_OFF = 0.015;
-const DEFAULT_LIGHTNESS_ENTROPY = 0.2;
+const DEFAULT_SATURATION_ENTROPY = 1.0;
+const DEFAULT_LIGHTNESS_ENTROPY = 0.125;
 const DEFAULT_TEXTURE_MODE = 0;
 
 const CELL_STATE_BYTES = 4;
@@ -187,25 +187,23 @@ updateSpeedDisplay();
     uploadEntropy();
 
     // budget-based step scheduling
-    let stepped = false;
     if (deltaTime > 0 && deltaTime < 500) {  // ignore huge gaps (tab switch)
       _stepBudget += deltaTime;
       const stepTime = 1000 / _targetFPS;
       // cap budget to prevent spiral of death
       _stepBudget = Math.min(_stepBudget, stepTime * 10);
-      while (_stepBudget >= stepTime && !_resetting) {
-        step();
-        _stepBudget -= stepTime;
-        _stepsThisSecond++;
-        stepped = true;
+      if (_stepBudget >= stepTime) {
+        while (_stepBudget >= stepTime && !_resetting) {
+          step(true);
+          _stepBudget -= stepTime;
+          _stepsThisSecond++;
+        }
+      } else {
+        step(false);
       }
     }
 
     applyMomentum();
-    const viewportChanged = _panX !== _lastDrawnPanX || _panY !== _lastDrawnPanY || _zoom !== _lastDrawnZoom;
-    if (!stepped && !viewportChanged) {
-      return;
-    }
     _lastDrawnPanX = _panX;
     _lastDrawnPanY = _panY;
     _lastDrawnZoom = _zoom;
@@ -258,7 +256,7 @@ updateSpeedDisplay();
   });
 })();
 
-function step() {
+function step(isPhysicsTicking) {
   const backIndex = (_generation + (_generation < 0 ? 2 : 0)) % 2;
   const frontIndex = (backIndex + 1) % 2;
 
@@ -282,6 +280,7 @@ function step() {
   _offscreen.colorTarget(5, _textures.minOscCount);
   _app.drawFramebuffer(_offscreen);
 
+  _drawCalls.golStep.uniform('u_is_physics_ticking', isPhysicsTicking ? 1 : 0);
   _drawCalls.golStep.uniform('u_alive_probability', _cellAliveProbability);
   _drawCalls.golStep.uniform('u_saturation_on', _saturation_on);
   _drawCalls.golStep.uniform('u_saturation_off', _saturation_off);
