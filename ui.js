@@ -46,9 +46,11 @@ function screenToCanvas(clientX, clientY) {
 // Convert screen coordinates to texture-space coordinates
 function screenToTexture(clientX, clientY) {
   const { x, y } = screenToCanvas(clientX, clientY);
+  const rawX = Math.floor(_viewX1 + (x / _canvasWidth) * (_viewX2 - _viewX1));
+  const rawY = Math.floor(_viewY2 - (y / _canvasHeight) * (_viewY2 - _viewY1));
   return {
-    x: Math.floor(_viewX1 + (x / _canvasWidth) * (_viewX2 - _viewX1)),
-    y: Math.floor(_viewY2 - (y / _canvasHeight) * (_viewY2 - _viewY1))
+    x: ((rawX % _maxWidth) + _maxWidth) % _maxWidth,
+    y: ((rawY % _maxHeight) + _maxHeight) % _maxHeight
   };
 }
 

@@ -22,11 +22,7 @@ void main() {
   vec2 state_coord = vec2(mix(u_view_x1, u_view_x2, uv.x), mix(u_view_y1, u_view_y2, uv.y));
   ivec2 cell_coord = ivec2(floor(state_coord));
   ivec2 tex_size = textureSize(u_state, 0);
-
-  if (cell_coord.x < 0 || cell_coord.y < 0 || cell_coord.x >= tex_size.x || cell_coord.y >= tex_size.y) {
-    frag_color = vec4(0.0, 0.0, 0.0, 1.0);
-    return;
-  }
+  cell_coord = ((cell_coord % tex_size) + tex_size) % tex_size;
 
   float cell_pixels = u_canvas_w / (u_view_x2 - u_view_x1);
   if (cell_pixels > 2.5) {

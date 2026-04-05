@@ -98,7 +98,6 @@ let _observerMode = 'touch';
 let _entropyMode = 'eye';
 let _observerX1 = -1, _observerY1 = -1, _observerX2 = -1, _observerY2 = -1;
 let _touchTexX = -1, _touchTexY = -1;
-let _entropyX1, _entropyY1, _entropyX2, _entropyY2;
 let _entropySource;
 let _resetting = false;
 let _maxGenerations = -1;
@@ -183,7 +182,6 @@ updateSpeedDisplay();
 
     computeViewport();
     computeObserver();
-    ensureEntropy();
     uploadEntropy();
 
     // budget-based step scheduling
@@ -306,36 +304,36 @@ function step(isPhysicsTicking) {
 }
 
 function computeObserver() {
+  // Observer uniforms are reinterpreted as (centerX, centerY, halfW, halfH)
+  // to support modular distance checks for torus wrapping in the shader.
   if (_observerMode === 'eye') {
-    _observerX1 = Math.max(0, Math.floor(_viewX1));
-    _observerY1 = Math.max(0, Math.floor(_viewY1));
-    _observerX2 = Math.min(_maxWidth - 1, Math.ceil(_viewX2));
-    _observerY2 = Math.min(_maxHeight - 1, Math.ceil(_viewY2));
+    _observerX1 = Math.floor(_panX);  // center X (already normalized to [0, max) by computeViewport)
+    _observerY1 = Math.floor(_panY);  // center Y
+    const viewW = _viewX2 - _viewX1;
+    const viewH = _viewY2 - _viewY1;
+    _observerX2 = Math.min(Math.ceil(viewW / 2) + 1, Math.floor(_maxWidth / 2));
+    _observerY2 = Math.min(Math.ceil(viewH / 2) + 1, Math.floor(_maxHeight / 2));
   } else if (_touchTexX >= 0) {
-    _observerX1 = Math.max(0, _touchTexX);
-    _observerY1 = Math.max(0, _touchTexY);
-    _observerX2 = Math.min(_maxWidth - 1, _touchTexX);
-    _observerY2 = Math.min(_maxHeight - 1, _touchTexY);
+    _observerX1 = _touchTexX;  // already wrapped by screenToTexture
+    _observerY1 = _touchTexY;
+    _observerX2 = 0;  // half-width 0 = single cell
+    _observerY2 = 0;
   } else {
     _observerX1 = _observerY1 = _observerX2 = _observerY2 = -1;
   }
 }
 
-function ensureEntropy() {
-  const x1 = Math.max(0, Math.floor(_viewX1));
-  const y1 = Math.max(0, Math.floor(_viewY1));
-  const x2 = Math.min(_maxWidth, Math.floor(_viewX2));
-  const y2 = Math.min(_maxHeight, Math.floor(_viewY2));
-
-  _entropyX1 = Math.min(_entropyX1, x1);
-  _entropyY1 = Math.min(_entropyY1, y1);
-  _entropyX2 = Math.max(_entropyX2, x2);
-  _entropyY2 = Math.max(_entropyY2, y2);
-}
-
 function uploadEntropy() {
-  const w = _entropyX2 - _entropyX1;
-  const h = _entropyY2 - _entropyY1;
+  // Upload entropy for the current viewport region, handling torus wrapping
+  // by splitting into up to 4 sub-rectangle uploads via UNPACK parameters.
+  const rawX1 = Math.floor(_viewX1);
+  const rawY1 = Math.floor(_viewY1);
+  const rawX2 = Math.ceil(_viewX2);
+  const rawY2 = Math.ceil(_viewY2);
+
+  // Clamp to texture size (for extreme zoom-out where viewport > texture)
+  const w = Math.min(rawX2 - rawX1, _maxWidth);
+  const h = Math.min(rawY2 - rawY1, _maxHeight);
   if (w <= 0 || h <= 0) return;
 
   const data = _entropySource.consume(w * h * CELL_STATE_BYTES);
@@ -345,8 +343,53 @@ function uploadEntropy() {
   const prevUnit = gl.getParameter(gl.ACTIVE_TEXTURE);
   gl.activeTexture(gl.TEXTURE15);
   gl.bindTexture(gl.TEXTURE_2D, _textures.entropy.texture);
-  gl.texSubImage2D(gl.TEXTURE_2D, 0, _entropyX1, _entropyY1, w, h,
+
+  // Wrap origin into [0, max)
+  const x0 = ((rawX1 % _maxWidth) + _maxWidth) % _maxWidth;
+  const y0 = ((rawY1 % _maxHeight) + _maxHeight) % _maxHeight;
+
+  // How much fits before wrapping in each dimension
+  const wx = Math.min(w, _maxWidth - x0);
+  const wy = Math.min(h, _maxHeight - y0);
+  const wx2 = w - wx;
+  const wy2 = h - wy;
+
+  gl.pixelStorei(gl.UNPACK_ROW_LENGTH, w);
+
+  // Bottom-left (always present)
+  gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, 0);
+  gl.pixelStorei(gl.UNPACK_SKIP_ROWS, 0);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, x0, y0, wx, wy,
     PicoGL.RGBA_INTEGER, PicoGL.BYTE, data);
+
+  // Bottom-right (X wraps)
+  if (wx2 > 0) {
+    gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, wx);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, y0, wx2, wy,
+      PicoGL.RGBA_INTEGER, PicoGL.BYTE, data);
+  }
+
+  // Top-left (Y wraps)
+  if (wy2 > 0) {
+    gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, 0);
+    gl.pixelStorei(gl.UNPACK_SKIP_ROWS, wy);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, x0, 0, wx, wy2,
+      PicoGL.RGBA_INTEGER, PicoGL.BYTE, data);
+  }
+
+  // Top-right (both wrap)
+  if (wx2 > 0 && wy2 > 0) {
+    gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, wx);
+    gl.pixelStorei(gl.UNPACK_SKIP_ROWS, wy);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, wx2, wy2,
+      PicoGL.RGBA_INTEGER, PicoGL.BYTE, data);
+  }
+
+  // Reset unpack parameters
+  gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0);
+  gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, 0);
+  gl.pixelStorei(gl.UNPACK_SKIP_ROWS, 0);
+
   gl.bindTexture(gl.TEXTURE_2D, null);
   gl.activeTexture(prevUnit);
 }
@@ -362,15 +405,13 @@ function applyMomentum() {
   }
 }
 
-function computeViewport(clamped = true) {
+function computeViewport() {
+  // Normalize pan to [0, max) to prevent floating-point drift from continuous panning
+  _panX = ((_panX % _maxWidth) + _maxWidth) % _maxWidth;
+  _panY = ((_panY % _maxHeight) + _maxHeight) % _maxHeight;
+
   const viewW = _canvasWidth * _zoom;
   const viewH = _canvasHeight * _zoom;
-
-  if (clamped) {
-    _panX = Math.max(viewW / 2, Math.min(_panX, _maxWidth - viewW / 2));
-    _panY = Math.max(viewH / 2, Math.min(_panY, _maxHeight - viewH / 2));
-  }
-
   _viewX1 = _panX - viewW / 2;
   _viewY1 = _panY - viewH / 2;
   _viewX2 = _panX + viewW / 2;
@@ -451,12 +492,6 @@ async function reset() {
   // _panY = _maxHeight / 2;
   // _zoom = 1 / _cellSize;
 
-  // reset entropy region to initial universe
-  _entropyX1 = (_maxWidth - _stateWidth) >> 1;
-  _entropyY1 = (_maxHeight - _stateHeight) >> 1;
-  _entropyX2 = _entropyX1 + _stateWidth;
-  _entropyY2 = _entropyY1 + _stateHeight;
-
   // clear all simulation textures via GPU-side clearBuffer
   const { gl } = _app;
   const zeros_i = new Int32Array(4);
@@ -469,18 +504,18 @@ async function reset() {
   clearTexture(gl, _clearFramebuffer, _textures.minOscCount, 'uiv', zeros_u);
   clearTexture(gl, _clearFramebuffer, _textures.cellColors, 'fv', zeros_f);
 
-  // clear entropy and re-upload for initial region only
+  // clear entropy and re-upload for initial centered region
   clearTexture(gl, _clearFramebuffer, _textures.entropy, 'iv', zeros_i);
   _app.defaultDrawFramebuffer();
 
+  const entropyX = (_maxWidth - _stateWidth) >> 1;
+  const entropyY = (_maxHeight - _stateHeight) >> 1;
   const initialEntropy = await _entropySource.consumeAsync(_stateWidth * _stateHeight * CELL_STATE_BYTES);
   gl.bindTexture(gl.TEXTURE_2D, _textures.entropy.texture);
-  gl.texSubImage2D(gl.TEXTURE_2D, 0, _entropyX1, _entropyY1, _stateWidth, _stateHeight,
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, entropyX, entropyY, _stateWidth, _stateHeight,
     PicoGL.RGBA_INTEGER, PicoGL.BYTE, initialEntropy);
   gl.bindTexture(gl.TEXTURE_2D, null);
 
-  // expand entropy to cover current viewport (pan/zoom aren't reset)
-  ensureEntropy();
   _resetting = false;
 }
 
@@ -511,6 +546,9 @@ function countActiveCells() {
 }
 
 function readCellState(texX, texY) {
+  texX = ((texX % _maxWidth) + _maxWidth) % _maxWidth;
+  texY = ((texY % _maxHeight) + _maxHeight) % _maxHeight;
+
   const { gl } = _app;
   const backIndex = (_generation + (_generation < 0 ? 2 : 0)) % 2;
   const frontIndex = (backIndex + 1) % 2;
@@ -605,12 +643,6 @@ async function init(reInit = false) {
   // max texture size = full screen pixel resolution (1 cell per pixel at max zoom-out)
   _maxWidth = Math.floor(width);
   _maxHeight = Math.floor(height);
-
-  // initial entropy region = stateWidth x stateHeight, centered in max-size texture
-  _entropyX1 = (_maxWidth - _stateWidth) >> 1;
-  _entropyY1 = (_maxHeight - _stateHeight) >> 1;
-  _entropyX2 = _entropyX1 + _stateWidth;
-  _entropyY2 = _entropyY1 + _stateHeight;
 
   if (!reInit) {
     const canvasEl = document.getElementById('c');
@@ -818,11 +850,13 @@ async function init(reInit = false) {
   clearTexture(gl, _clearFramebuffer, _textures.entropy, 'iv', zeros_i);
   _app.defaultDrawFramebuffer();
 
+  const entropyX = (_maxWidth - _stateWidth) >> 1;
+  const entropyY = (_maxHeight - _stateHeight) >> 1;
   const initialEntropy = await _entropySource.consumeAsync(_stateWidth * _stateHeight * CELL_STATE_BYTES);
   const prevUnit = gl.getParameter(gl.ACTIVE_TEXTURE);
   gl.activeTexture(gl.TEXTURE15);
   gl.bindTexture(gl.TEXTURE_2D, _textures.entropy.texture);
-  gl.texSubImage2D(gl.TEXTURE_2D, 0, _entropyX1, _entropyY1, _stateWidth, _stateHeight,
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, entropyX, entropyY, _stateWidth, _stateHeight,
     PicoGL.RGBA_INTEGER, PicoGL.BYTE, initialEntropy);
   gl.bindTexture(gl.TEXTURE_2D, null);
   gl.activeTexture(prevUnit);

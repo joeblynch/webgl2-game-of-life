@@ -145,8 +145,14 @@ uint getOscCount(uint history, uint p, uint prev_osc_count) {
 }
 
 bool is_externally_observed(ivec2 coord) {
-  //ivec4 last_cell = texelFetch(u_state, coord, 0);
-  return coord.x >= u_observer_x1 && coord.x <= u_observer_x2 && coord.y >= u_observer_y1 && coord.y <= u_observer_y2;
+  if (u_observer_x1 < 0) return false;
+  ivec2 size = textureSize(u_state, 0);
+  // uniforms are (centerX, centerY, halfW, halfH) — use modular distance for torus wrapping
+  int dx = abs(coord.x - u_observer_x1);
+  int dy = abs(coord.y - u_observer_y1);
+  dx = min(dx, size.x - dx);
+  dy = min(dy, size.y - dy);
+  return dx <= u_observer_x2 && dy <= u_observer_y2;
 }
 
 bool has_sufficient_observability(int neighbor_count) {
