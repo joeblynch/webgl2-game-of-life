@@ -1,7 +1,7 @@
 // NOTE: This code is ugly because it's uninteresting, so as little time was spent on it as possible.
 //       The magic happens in gol-step.frag.
 
-const DEFAULT_CELL_SIZE = Math.floor(2 * window.devicePixelRatio) + 1;
+const DEFAULT_CELL_SIZE = 4; //Math.floor(2 * window.devicePixelRatio) + 1;
 const DEFAULT_ALIVE_PROBABILITY = 0.5;
 const DEFAULT_TARGET_FPS = 15;
 const DEFAULT_SATURATION_ON = 0.98;
