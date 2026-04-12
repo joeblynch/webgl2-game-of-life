@@ -123,10 +123,71 @@ const ivec2 DEFAULT_HUE = ivec2(0, 255);
 const float PI = 3.1415927;
 const float RAD_TO_DEG = 180.0 / PI;
 const float DEG_TO_RAD = PI / 180.0;
-const float INV_360 = 1.0 / 360.0;
+const float INV_127 = 1.0 / 127.0;
 const float INV_255 = 1.0 / 255.0;
+const float INV_360 = 1.0 / 360.0;
+const float NORMALIZE_EPSILON = 1e-6;
 
-ivec4 getState(ivec2 coord, ivec2 size) {
+// transform unit vectors to determine inward pressure based on relative neighbor position
+const vec2 TC_N  = vec2( 0.0,  1.0);
+const vec2 TC_W  = vec2( 1.0,  0.0);
+const vec2 TC_E  = vec2(-1.0,  0.0);
+const vec2 TC_S  = vec2( 0.0, -1.0);
+const vec2 TC_NW = normalize(vec2( 1.0,  1.0));
+const vec2 TC_NE = normalize(vec2(-1.0,  1.0));
+const vec2 TC_SW = normalize(vec2( 1.0, -1.0));
+const vec2 TC_SE = normalize(vec2(-1.0, -1.0));
+
+// the 8 neighbor vectors are normalized, so our max pressure is also 8
+const float MAX_ENTROPY_PRESSURE = 8.0;
+
+ivec2 get_entropy_vec(ivec2 coord, ivec2 size) {
+  // handle the wrapping of coordinates around the torus manually, to support non-power-of-two sized universes
+  ivec2 wrapped = (coord + size) % size;
+  return texelFetch(u_entropy, wrapped, 0).gb;
+}
+
+bool is_nucleation(ivec2 coord, ivec2 size, float threshold, out ivec2 pressure_vec) {
+  // the neighboring entropy determines if nucleation occurs, and if so its hue state
+  vec2 nw = vec2(get_entropy_vec(coord + ivec2(-1, -1), size)) * INV_127;
+  vec2 n  = vec2(get_entropy_vec(coord + ivec2( 0, -1), size)) * INV_127;
+  vec2 ne = vec2(get_entropy_vec(coord + ivec2( 1, -1), size)) * INV_127;
+  vec2 w  = vec2(get_entropy_vec(coord + ivec2(-1,  0), size)) * INV_127;
+  vec2 e  = vec2(get_entropy_vec(coord + ivec2( 1,  0), size)) * INV_127;
+  vec2 sw = vec2(get_entropy_vec(coord + ivec2(-1,  1), size)) * INV_127;
+  vec2 s  = vec2(get_entropy_vec(coord + ivec2( 0,  1), size)) * INV_127;
+  vec2 se = vec2(get_entropy_vec(coord + ivec2( 1,  1), size)) * INV_127;
+
+  // flip the vectors to determine how much they point towards this cell
+  float nw_force = dot(nw, TC_NW);
+  float n_force =  dot(n,   TC_N);
+  float ne_force = dot(ne, TC_NE);
+  float w_force =  dot(w,   TC_W);
+  float e_force =  dot(e,   TC_E);
+  float sw_force = dot(sw, TC_SW);
+  float s_force =  dot(s,   TC_S);
+  float se_force = dot(se, TC_SE);
+
+  // the incoming pressure vector becomes the cell's hue angle, if nucleated
+  vec2 residual =
+    TC_NW * nw_force + TC_N * n_force + TC_NE * ne_force +
+    TC_W  * w_force          +          TC_E  *  e_force +
+    TC_SW * sw_force + TC_S * s_force + TC_SE * se_force;
+
+  // the pressure vector is the residual force, while handling the NaN case for `normalize` for near-zero values
+  pressure_vec = dot(residual, residual) > NORMALIZE_EPSILON ? ivec2(normalize(residual) * 127.0) : NULL_HUE;
+
+  // determine how much pressure is being exerted towards the cell by it's neighboring entropy
+  float total_pressure =
+    nw_force + n_force + ne_force +
+    w_force       +       e_force +
+    sw_force + s_force + se_force;
+
+  // the total pressure determines if the entropy "pokes through" into the universe
+  return total_pressure >= threshold * MAX_ENTROPY_PRESSURE;
+}
+
+ivec4 get_state(ivec2 coord, ivec2 size) {
   // handle the wrapping of coordinates around the torus manually, to support non-power-of-two sized universes
   ivec2 wrapped = (coord + size) % size;
   return texelFetch(u_state, wrapped, 0);
@@ -191,14 +252,14 @@ void main() {
   
   // lookup neighbor state
   ivec2 size = textureSize(u_state, 0);
-  ivec4 nw = getState(coord + ivec2(-1, -1), size);
-  ivec4 n  = getState(coord + ivec2( 0, -1), size);
-  ivec4 ne = getState(coord + ivec2( 1, -1), size);
-  ivec4 w  = getState(coord + ivec2(-1,  0), size);
-  ivec4 e  = getState(coord + ivec2( 1,  0), size);
-  ivec4 sw = getState(coord + ivec2(-1,  1), size);
-  ivec4 s  = getState(coord + ivec2( 0,  1), size);
-  ivec4 se = getState(coord + ivec2( 1,  1), size);
+  ivec4 nw = get_state(coord + ivec2(-1, -1), size);
+  ivec4 n  = get_state(coord + ivec2( 0, -1), size);
+  ivec4 ne = get_state(coord + ivec2( 1, -1), size);
+  ivec4 w  = get_state(coord + ivec2(-1,  0), size);
+  ivec4 e  = get_state(coord + ivec2( 1,  0), size);
+  ivec4 sw = get_state(coord + ivec2(-1,  1), size);
+  ivec4 s  = get_state(coord + ivec2( 0,  1), size);
+  ivec4 se = get_state(coord + ivec2( 1,  1), size);
 
   // count neighbors that exist (have state)
   int neighbor_count = 
@@ -215,18 +276,26 @@ void main() {
     // I do not exist. Am I observed?
     bool is_observed = neighbor_count > 0 || is_externally_observed(coord);
 
+    // TODO: make 0.93 a uniform
+    ivec2 pressure_vec;
+    bool is_nucleated = is_nucleation(coord, size, 0.93, pressure_vec);
+
     // If I'm observed, is physics also ticking to convert probability into state?
-    if (is_observed && u_is_physics_ticking) {
+    if ((is_observed || is_nucleated) && u_is_physics_ticking) {
       // I am observed, I will come into existence... but only if probability can collapse into state.
       ivec4 entropy = texelFetch(u_entropy, coord, 0);
       if (entropy != NULL_CELL) {
         // collapse probability into state
         next_cell.r = int(float(entropy.r + 128) * INV_255 <= u_alive_probability);
 
-        if (entropy.gb == NULL_HUE) {
-          next_cell.gb = DEFAULT_HUE;
+        // the hue vector of the cell's entropy is considered an outward force, while the combined with the pressure
+        // of the neighboring entropy that triggered the nucleation is considered an inwards force. the delta then
+        // determines the cell's initial hue
+        vec2 hue_delta = vec2(pressure_vec - entropy.gb);
+        if (dot(hue_delta, hue_delta) > NORMALIZE_EPSILON) {
+          next_cell.gb = ivec2(normalize(hue_delta) * 127.0);
         } else {
-          next_cell.gb = entropy.gb;
+          next_cell.gb = DEFAULT_HUE;
         }
 
         // make the cell barely visible, as it is just came into existence
