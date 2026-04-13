@@ -100,7 +100,6 @@ let _observerMode = 'touch';
 let _entropyMode = 'eye';
 let _observerX1 = -1, _observerY1 = -1, _observerX2 = -1, _observerY2 = -1;
 let _touchTexX = -1, _touchTexY = -1;
-let _entropyX1, _entropyY1, _entropyX2, _entropyY2;
 let _entropySource;
 let _resetting = false;
 let _fullInteriorX1, _fullInteriorY1, _fullInteriorX2, _fullInteriorY2;
@@ -186,7 +185,6 @@ updateSpeedDisplay();
 
     computeViewport();
     computeObserver();
-    ensureEntropy();
     uploadEntropy();
 
     // budget-based step scheduling
@@ -326,35 +324,20 @@ function computeObserver() {
   }
 }
 
-function ensureEntropy() {
-  const x1 = Math.max(0, Math.floor(_viewX1));
-  const y1 = Math.max(0, Math.floor(_viewY1));
-  const x2 = Math.min(_maxWidth, Math.floor(_viewX2));
-  const y2 = Math.min(_maxHeight, Math.floor(_viewY2));
-
-  _entropyX1 = Math.min(_entropyX1, x1);
-  _entropyY1 = Math.min(_entropyY1, y1);
-  _entropyX2 = Math.max(_entropyX2, x2);
-  _entropyY2 = Math.max(_entropyY2, y2);
-}
-
 function uploadEntropy() {
   if (_endedGeneration >= 0) return;
-  const eW = _entropyX2 - _entropyX1;
-  const eH = _entropyY2 - _entropyY1;
-  if (eW <= 0 || eH <= 0) return;
 
-  // interior in pixel coords (clamped to entropy bounds)
-  const intPx1 = Math.max(_entropyX1, _fullInteriorX1 << 4);
-  const intPy1 = Math.max(_entropyY1, _fullInteriorY1 << 4);
-  const intPx2 = Math.min(_entropyX2, _fullInteriorX2 << 4);
-  const intPy2 = Math.min(_entropyY2, _fullInteriorY2 << 4);
+  // interior in pixel coords (clamped to full texture bounds)
+  const intPx1 = Math.max(0, _fullInteriorX1 << 4);
+  const intPy1 = Math.max(0, _fullInteriorY1 << 4);
+  const intPx2 = Math.min(_maxWidth, _fullInteriorX2 << 4);
+  const intPy2 = Math.min(_maxHeight, _fullInteriorY2 << 4);
 
   const hasInterior = intPx2 > intPx1 && intPy2 > intPy1;
 
   const totalBytes = hasInterior
-    ? (eW * eH - (intPx2 - intPx1) * (intPy2 - intPy1)) * CELL_STATE_BYTES
-    : eW * eH * CELL_STATE_BYTES;
+    ? (_maxWidth * _maxHeight - (intPx2 - intPx1) * (intPy2 - intPy1)) * CELL_STATE_BYTES
+    : _maxWidth * _maxHeight * CELL_STATE_BYTES;
 
   if (totalBytes <= 0) return;
 
@@ -367,7 +350,7 @@ function uploadEntropy() {
   gl.bindTexture(gl.TEXTURE_2D, _textures.entropy.texture);
 
   if (!hasInterior) {
-    gl.texSubImage2D(gl.TEXTURE_2D, 0, _entropyX1, _entropyY1, eW, eH,
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, _maxWidth, _maxHeight,
       PicoGL.RGBA_INTEGER, PicoGL.BYTE, data);
   } else {
     let offset = 0;
@@ -379,10 +362,10 @@ function uploadEntropy() {
         new Int8Array(data.buffer, data.byteOffset + offset, bytes));
       offset += bytes;
     };
-    upload(_entropyX1, _entropyY1, eW, intPy1 - _entropyY1);              // top
-    upload(_entropyX1, intPy2, eW, _entropyY2 - intPy2);                  // bottom
-    upload(_entropyX1, intPy1, intPx1 - _entropyX1, intPy2 - intPy1);    // left
-    upload(intPx2, intPy1, _entropyX2 - intPx2, intPy2 - intPy1);        // right
+    upload(0, 0, _maxWidth, intPy1);                          // top
+    upload(0, intPy2, _maxWidth, _maxHeight - intPy2);        // bottom
+    upload(0, intPy1, intPx1, intPy2 - intPy1);              // left
+    upload(intPx2, intPy1, _maxWidth - intPx2, intPy2 - intPy1); // right
   }
 
   gl.bindTexture(gl.TEXTURE_2D, null);
@@ -534,12 +517,6 @@ async function reset() {
   // _panY = _maxHeight / 2;
   // _zoom = 1 / _cellSize;
 
-  // reset entropy region to initial universe
-  _entropyX1 = (_maxWidth - _stateWidth) >> 1;
-  _entropyY1 = (_maxHeight - _stateHeight) >> 1;
-  _entropyX2 = _entropyX1 + _stateWidth;
-  _entropyY2 = _entropyY1 + _stateHeight;
-
   // clear all simulation textures via GPU-side clearBuffer
   const { gl } = _app;
   const zeros_i = new Int32Array(4);
@@ -552,18 +529,11 @@ async function reset() {
   clearTexture(gl, _clearFramebuffer, _textures.minOscCount, 'uiv', zeros_u);
   clearTexture(gl, _clearFramebuffer, _textures.cellColors, 'fv', zeros_f);
 
-  // clear entropy and re-upload for initial region only
+  // clear entropy and re-upload for full texture
   clearTexture(gl, _clearFramebuffer, _textures.entropy, 'iv', zeros_i);
   _app.defaultDrawFramebuffer();
 
-  const initialEntropy = await _entropySource.consumeAsync(_stateWidth * _stateHeight * CELL_STATE_BYTES);
-  gl.bindTexture(gl.TEXTURE_2D, _textures.entropy.texture);
-  gl.texSubImage2D(gl.TEXTURE_2D, 0, _entropyX1, _entropyY1, _stateWidth, _stateHeight,
-    PicoGL.RGBA_INTEGER, PicoGL.BYTE, initialEntropy);
-  gl.bindTexture(gl.TEXTURE_2D, null);
-
-  // expand entropy to cover current viewport (pan/zoom aren't reset)
-  ensureEntropy();
+  await uploadInitialEntropy();
   _resetting = false;
 }
 
@@ -688,12 +658,6 @@ async function init(reInit = false) {
   // max texture size = full screen pixel resolution (1 cell per pixel at max zoom-out)
   _maxWidth = Math.floor(width);
   _maxHeight = Math.floor(height);
-
-  // initial entropy region = stateWidth x stateHeight, centered in max-size texture
-  _entropyX1 = (_maxWidth - _stateWidth) >> 1;
-  _entropyY1 = (_maxHeight - _stateHeight) >> 1;
-  _entropyX2 = _entropyX1 + _stateWidth;
-  _entropyY2 = _entropyY1 + _stateHeight;
 
   if (!reInit) {
     const canvasEl = document.getElementById('c');
@@ -905,11 +869,16 @@ async function init(reInit = false) {
   clearTexture(gl, _clearFramebuffer, _textures.entropy, 'iv', zeros_i);
   _app.defaultDrawFramebuffer();
 
-  const initialEntropy = await _entropySource.consumeAsync(_stateWidth * _stateHeight * CELL_STATE_BYTES);
+  await uploadInitialEntropy();
+}
+
+async function uploadInitialEntropy() {
+  const { gl } = _app;
+  const initialEntropy = await _entropySource.consumeAsync(_maxWidth * _maxHeight * CELL_STATE_BYTES);
   const prevUnit = gl.getParameter(gl.ACTIVE_TEXTURE);
   gl.activeTexture(gl.TEXTURE15);
   gl.bindTexture(gl.TEXTURE_2D, _textures.entropy.texture);
-  gl.texSubImage2D(gl.TEXTURE_2D, 0, _entropyX1, _entropyY1, _stateWidth, _stateHeight,
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, _maxWidth, _maxHeight,
     PicoGL.RGBA_INTEGER, PicoGL.BYTE, initialEntropy);
   gl.bindTexture(gl.TEXTURE_2D, null);
   gl.activeTexture(prevUnit);
