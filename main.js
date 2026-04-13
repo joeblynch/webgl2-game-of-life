@@ -309,16 +309,20 @@ function step(isPhysicsTicking) {
 }
 
 function computeObserver() {
+  // Observer uniforms are reinterpreted as (centerX, centerY, halfW, halfH)
+  // to support modular distance checks for torus wrapping in the shader.
   if (_observerMode === 'eye') {
-    _observerX1 = Math.max(0, Math.floor(_viewX1));
-    _observerY1 = Math.max(0, Math.floor(_viewY1));
-    _observerX2 = Math.min(_maxWidth - 1, Math.ceil(_viewX2));
-    _observerY2 = Math.min(_maxHeight - 1, Math.ceil(_viewY2));
+    _observerX1 = Math.floor(_panX);  // center X (already normalized to [0, max) by computeViewport)
+    _observerY1 = Math.floor(_panY);  // center Y
+    const viewW = _viewX2 - _viewX1;
+    const viewH = _viewY2 - _viewY1;
+    _observerX2 = Math.min(Math.ceil(viewW / 2) + 1, Math.floor(_maxWidth / 2));
+    _observerY2 = Math.min(Math.ceil(viewH / 2) + 1, Math.floor(_maxHeight / 2));
   } else if (_touchTexX >= 0) {
-    _observerX1 = Math.max(0, _touchTexX);
-    _observerY1 = Math.max(0, _touchTexY);
-    _observerX2 = Math.min(_maxWidth - 1, _touchTexX);
-    _observerY2 = Math.min(_maxHeight - 1, _touchTexY);
+    _observerX1 = _touchTexX;  // already wrapped by screenToTexture
+    _observerY1 = _touchTexY;
+    _observerX2 = 0;  // half-width 0 = single cell
+    _observerY2 = 0;
   } else {
     _observerX1 = _observerY1 = _observerX2 = _observerY2 = -1;
   }
@@ -423,15 +427,13 @@ function applyMomentum() {
   }
 }
 
-function computeViewport(clamped = true) {
+function computeViewport() {
+  // Normalize pan to [0, max) to prevent floating-point drift from continuous panning
+  _panX = ((_panX % _maxWidth) + _maxWidth) % _maxWidth;
+  _panY = ((_panY % _maxHeight) + _maxHeight) % _maxHeight;
+
   const viewW = _canvasWidth * _zoom;
   const viewH = _canvasHeight * _zoom;
-
-  if (clamped) {
-    _panX = Math.max(viewW / 2, Math.min(_panX, _maxWidth - viewW / 2));
-    _panY = Math.max(viewH / 2, Math.min(_panY, _maxHeight - viewH / 2));
-  }
-
   _viewX1 = _panX - viewW / 2;
   _viewY1 = _panY - viewH / 2;
   _viewX2 = _panX + viewW / 2;
@@ -564,6 +566,9 @@ function countActiveCells() {
 }
 
 function readCellState(texX, texY) {
+  texX = ((texX % _maxWidth) + _maxWidth) % _maxWidth;
+  texY = ((texY % _maxHeight) + _maxHeight) % _maxHeight;
+
   const { gl } = _app;
   const backIndex = (_generation + (_generation < 0 ? 2 : 0)) % 2;
   const frontIndex = (backIndex + 1) % 2;

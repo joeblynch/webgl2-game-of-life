@@ -11,13 +11,8 @@ layout(location=0) out vec4 frag_color;
 void main() {
   vec2 uv = gl_FragCoord.xy / vec2(u_canvas_w, u_canvas_h);
   vec2 state_coord = vec2(mix(u_view_x1, u_view_x2, uv.x), mix(u_view_y1, u_view_y2, uv.y));
-  ivec2 cell = ivec2(floor(state_coord));
   ivec2 tex_size = textureSize(u_state, 0);
-
-  if (cell.x < 0 || cell.y < 0 || cell.x >= tex_size.x || cell.y >= tex_size.y) {
-    frag_color = vec4(0.0, 0.0, 0.0, 1.0);
-    return;
-  }
+  ivec2 cell = ivec2(mod(state_coord, vec2(tex_size)));
 
   float cell_pixels = u_canvas_w / (u_view_x2 - u_view_x1);
   if (cell_pixels > 2.5) {
