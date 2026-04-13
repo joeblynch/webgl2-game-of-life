@@ -101,6 +101,7 @@ function saveConfig() {
     localStorage.setItem('gol-config', JSON.stringify({
       alive: _cellAliveProbability,
       ...(!_gridWidth && !_gridHeight && { size: _cellSize }),
+      nucleation: _nucleationThreshold,
       fps: _targetFPS,
       satOn: parseFloat(_saturation_on.toPrecision(3)),
       satOff: parseFloat(_saturation_off.toPrecision(3)),
@@ -190,6 +191,8 @@ function openSettings() {
   document.getElementById('val-cell-size').innerText = _cellSize;
   document.getElementById('range-alive').value = _cellAliveProbability;
   document.getElementById('val-alive').innerText = Math.round(_cellAliveProbability * 100) + '%';
+  document.getElementById('range-nucleation').value = _nucleationThreshold;
+  document.getElementById('val-nucleation').innerText = Math.round(_nucleationThreshold * 100) + '%';
 
   _settingsDrawerEl.classList.add('visible');
   clearAutoHide();
@@ -783,6 +786,7 @@ document.getElementById('btn-defaults').addEventListener('click', (e) => {
   const needsRestart = _cellSize !== DEFAULT_CELL_SIZE;
 
   _cellAliveProbability = DEFAULT_ALIVE_PROBABILITY;
+  _nucleationThreshold = DEFAULT_NUCLEATION_THRESHOLD;
   _cellSize = DEFAULT_CELL_SIZE;
   _targetFPS = DEFAULT_TARGET_FPS;
   _saturation_on = DEFAULT_SATURATION_ON;
@@ -868,6 +872,12 @@ bindSlider('cell-size',
 bindSlider('alive',
   () => _cellAliveProbability,
   (v) => { _cellAliveProbability = v; },
+  (v) => Math.round(v * 100) + '%'
+);
+
+bindSlider('nucleation',
+  () => _nucleationThreshold,
+  (v) => { _nucleationThreshold = v; },
   (v) => Math.round(v * 100) + '%'
 );
 
