@@ -3,6 +3,7 @@
 
 const DEFAULT_CELL_SIZE = 4; //Math.floor(2 * window.devicePixelRatio) + 1;
 const DEFAULT_ALIVE_PROBABILITY = 0.5;
+const DEFAULT_NUCLEATION_THRESHOLD = 0.93;
 const DEFAULT_TARGET_FPS = 15;
 const DEFAULT_SATURATION_ON = 0.98;
 const DEFAULT_LIGHTNESS_ON = 0.76;
@@ -66,6 +67,7 @@ const _drawCalls = {};
 const _textures = {};
 const options = parseHash();
 let _cellAliveProbability = options.alive >= 0 && options.alive <= 1 ? options.alive : DEFAULT_ALIVE_PROBABILITY;
+let _nucleationThreshold = options.nucleation >= 0 && options.nucleation <= 1 ? options.nucleation : DEFAULT_NUCLEATION_THRESHOLD;
 let _cellSize = options.size || DEFAULT_CELL_SIZE;
 let _targetFPS = typeof options.fps === 'number' ? options.fps : DEFAULT_TARGET_FPS;
 let _saturation_on = typeof options.satOn === 'number' ? options.satOn : DEFAULT_SATURATION_ON;
@@ -282,6 +284,7 @@ function step(isPhysicsTicking) {
 
   _drawCalls.golStep.uniform('u_is_physics_ticking', isPhysicsTicking ? 1 : 0);
   _drawCalls.golStep.uniform('u_alive_probability', _cellAliveProbability);
+  _drawCalls.golStep.uniform('u_nucleation_threshold', _nucleationThreshold);
   _drawCalls.golStep.uniform('u_saturation_on', _saturation_on);
   _drawCalls.golStep.uniform('u_saturation_off', _saturation_off);
   _drawCalls.golStep.uniform('u_saturation_entropy', _saturation_entropy);

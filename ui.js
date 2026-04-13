@@ -75,6 +75,7 @@ updateLandscapeClass();
 function updateConfig() {
   const options = parseHash();
   options.alive = _cellAliveProbability;
+  options.nucleation = _nucleationThreshold;
   if (!_gridWidth && !_gridHeight) options.size = _cellSize;
   options.fps = _targetFPS;
   options.satOn = _saturation_on.toPrecision(3);

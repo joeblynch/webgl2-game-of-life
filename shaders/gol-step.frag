@@ -9,6 +9,9 @@ precision mediump usampler2D;
 // entropy is externally injected into the universe
 uniform isampler2D u_entropy;
 
+// a value between 0 and 1 defines the normalized pressure threshold needed to trigger nucleation
+uniform float u_nucleation_threshold;
+
 // the universe state, each texture pixel is a cell. red: on/off state bit, green/blue: x/y vector of cell's hue angle
 uniform isampler2D u_state;
 
@@ -276,9 +279,8 @@ void main() {
     // I do not exist. Am I observed?
     bool is_observed = neighbor_count > 0 || is_externally_observed(coord);
 
-    // TODO: make 0.93 a uniform
     ivec2 pressure_vec;
-    bool is_nucleated = is_nucleation(coord, size, 0.93, pressure_vec);
+    bool is_nucleated = is_nucleation(coord, size, u_nucleation_threshold, pressure_vec);
 
     // If I'm observed, is physics also ticking to convert probability into state?
     if ((is_observed || is_nucleated) && u_is_physics_ticking) {
