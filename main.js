@@ -103,6 +103,7 @@ let _touchTexX = -1, _touchTexY = -1;
 let _entropyX1, _entropyY1, _entropyX2, _entropyY2;
 let _entropySource;
 let _resetting = false;
+let _fullInteriorX1, _fullInteriorY1, _fullInteriorX2, _fullInteriorY2;
 let _maxGenerations = -1;
 let _maxActive = -1;
 let _lastDrawnPanX, _lastDrawnPanY, _lastDrawnZoom;
@@ -250,6 +251,7 @@ updateSpeedDisplay();
       if (active > _maxActive) {
         _maxActive = active;
       }
+      growFullInterior();
     }
 
     if (_endedGeneration >= 0 && _generation >= _endedGeneration + FADE_OUT_GENERATION_COUNT) {
@@ -337,21 +339,94 @@ function ensureEntropy() {
 }
 
 function uploadEntropy() {
-  const w = _entropyX2 - _entropyX1;
-  const h = _entropyY2 - _entropyY1;
-  if (w <= 0 || h <= 0) return;
+  if (_endedGeneration >= 0) return;
+  const eW = _entropyX2 - _entropyX1;
+  const eH = _entropyY2 - _entropyY1;
+  if (eW <= 0 || eH <= 0) return;
 
-  const data = _entropySource.consume(w * h * CELL_STATE_BYTES);
+  // interior in pixel coords (clamped to entropy bounds)
+  const intPx1 = Math.max(_entropyX1, _fullInteriorX1 << 4);
+  const intPy1 = Math.max(_entropyY1, _fullInteriorY1 << 4);
+  const intPx2 = Math.min(_entropyX2, _fullInteriorX2 << 4);
+  const intPy2 = Math.min(_entropyY2, _fullInteriorY2 << 4);
+
+  const hasInterior = intPx2 > intPx1 && intPy2 > intPy1;
+
+  const totalBytes = hasInterior
+    ? (eW * eH - (intPx2 - intPx1) * (intPy2 - intPy1)) * CELL_STATE_BYTES
+    : eW * eH * CELL_STATE_BYTES;
+
+  if (totalBytes <= 0) return;
+
+  const data = _entropySource.consume(totalBytes);
   if (!data) return;
 
   const gl = _app.gl;
   const prevUnit = gl.getParameter(gl.ACTIVE_TEXTURE);
   gl.activeTexture(gl.TEXTURE15);
   gl.bindTexture(gl.TEXTURE_2D, _textures.entropy.texture);
-  gl.texSubImage2D(gl.TEXTURE_2D, 0, _entropyX1, _entropyY1, w, h,
-    PicoGL.RGBA_INTEGER, PicoGL.BYTE, data);
+
+  if (!hasInterior) {
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, _entropyX1, _entropyY1, eW, eH,
+      PicoGL.RGBA_INTEGER, PicoGL.BYTE, data);
+  } else {
+    let offset = 0;
+    const upload = (x, y, w, h) => {
+      if (w <= 0 || h <= 0) return;
+      const bytes = w * h * CELL_STATE_BYTES;
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, x, y, w, h,
+        PicoGL.RGBA_INTEGER, PicoGL.BYTE,
+        new Int8Array(data.buffer, data.byteOffset + offset, bytes));
+      offset += bytes;
+    };
+    upload(_entropyX1, _entropyY1, eW, intPy1 - _entropyY1);              // top
+    upload(_entropyX1, intPy2, eW, _entropyY2 - intPy2);                  // bottom
+    upload(_entropyX1, intPy1, intPx1 - _entropyX1, intPy2 - intPy1);    // left
+    upload(intPx2, intPy1, _entropyX2 - intPx2, intPy2 - intPy1);        // right
+  }
+
   gl.bindTexture(gl.TEXTURE_2D, null);
   gl.activeTexture(prevUnit);
+}
+
+function growFullInterior() {
+  // edge blocks have fewer than 256 cells when texture dims aren't multiples of 16
+  const rightEdgeCells = _maxWidth % 16 || 16;
+  const bottomEdgeCells = _maxHeight % 16 || 16;
+  const maxExisting = (bx, by) => {
+    const w = (bx === _activeWidth - 1) ? rightEdgeCells : 16;
+    const h = (by === _activeHeight - 1) ? bottomEdgeCells : 16;
+    return Math.min(w * h, 255);
+  };
+
+  let grew;
+  do {
+    grew = false;
+    if (_fullInteriorX2 < _activeWidth) {
+      let full = true;
+      for (let by = _fullInteriorY1; by < _fullInteriorY2 && full; by++)
+        full = _activeCounts[(by * _activeWidth + _fullInteriorX2) * 4 + 1] >= maxExisting(_fullInteriorX2, by);
+      if (full) { _fullInteriorX2++; grew = true; }
+    }
+    if (_fullInteriorX1 > 0) {
+      let full = true;
+      for (let by = _fullInteriorY1; by < _fullInteriorY2 && full; by++)
+        full = _activeCounts[(by * _activeWidth + (_fullInteriorX1 - 1)) * 4 + 1] === 255;
+      if (full) { _fullInteriorX1--; grew = true; }
+    }
+    if (_fullInteriorY2 < _activeHeight) {
+      let full = true;
+      for (let bx = _fullInteriorX1; bx < _fullInteriorX2 && full; bx++)
+        full = _activeCounts[(_fullInteriorY2 * _activeWidth + bx) * 4 + 1] >= maxExisting(bx, _fullInteriorY2);
+      if (full) { _fullInteriorY2++; grew = true; }
+    }
+    if (_fullInteriorY1 > 0) {
+      let full = true;
+      for (let bx = _fullInteriorX1; bx < _fullInteriorX2 && full; bx++)
+        full = _activeCounts[((_fullInteriorY1 - 1) * _activeWidth + bx) * 4 + 1] === 255;
+      if (full) { _fullInteriorY1--; grew = true; }
+    }
+  } while (grew);
 }
 
 function applyMomentum() {
@@ -450,6 +525,11 @@ async function reset() {
   _generation = START_GENERATION;
   _endedGeneration = -1;
   _maxActive = -1;
+  _activeCounts.fill(0);
+  _fullInteriorX1 = _activeWidth >> 1;
+  _fullInteriorY1 = _activeHeight >> 1;
+  _fullInteriorX2 = _fullInteriorX1;
+  _fullInteriorY2 = _fullInteriorY1;
   // _panX = _maxWidth / 2;
   // _panY = _maxHeight / 2;
   // _zoom = 1 / _cellSize;
@@ -767,6 +847,10 @@ async function init(reInit = false) {
   _activeHeight = Math.ceil(_maxHeight / 16);
 
   _activeCounts = new Uint32Array(_activeWidth * _activeHeight * 4);
+  _fullInteriorX1 = _activeWidth >> 1;
+  _fullInteriorY1 = _activeHeight >> 1;
+  _fullInteriorX2 = _fullInteriorX1;
+  _fullInteriorY2 = _fullInteriorY1;
 
   _textures.activeCounts = _app.createTexture2D(_activeWidth, _activeHeight, {
     internalFormat: PicoGL.RGBA8UI,
