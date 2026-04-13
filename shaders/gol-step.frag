@@ -123,6 +123,7 @@ const ivec4 NULL_CELL = ivec4(0);
 const ivec2 NULL_HUE = ivec2(0);
 const ivec2 DEFAULT_HUE = ivec2(0, 255);
 
+// math constants
 const float PI = 3.1415927;
 const float RAD_TO_DEG = 180.0 / PI;
 const float DEG_TO_RAD = PI / 180.0;
@@ -150,7 +151,13 @@ ivec2 get_entropy_vec(ivec2 coord, ivec2 size) {
   return texelFetch(u_entropy, wrapped, 0).gb;
 }
 
-bool is_nucleation(ivec2 coord, ivec2 size, float threshold, out ivec2 pressure_vec) {
+void get_nucleation_conditions(
+  ivec2 coord,
+  ivec2 size,
+  float threshold,
+  out bool can_nucleate,
+  out ivec2 pressure_vec
+) {
   // the neighboring entropy determines if nucleation occurs, and if so its hue state
   vec2 nw = vec2(get_entropy_vec(coord + ivec2(-1, -1), size)) * INV_127;
   vec2 n  = vec2(get_entropy_vec(coord + ivec2( 0, -1), size)) * INV_127;
@@ -187,7 +194,7 @@ bool is_nucleation(ivec2 coord, ivec2 size, float threshold, out ivec2 pressure_
     sw_force + s_force + se_force;
 
   // the total pressure determines if the entropy "pokes through" into the universe
-  return total_pressure >= threshold * MAX_ENTROPY_PRESSURE;
+  can_nucleate = total_pressure >= threshold * MAX_ENTROPY_PRESSURE;
 }
 
 ivec4 get_state(ivec2 coord, ivec2 size) {
@@ -264,49 +271,77 @@ void main() {
   ivec4 s  = get_state(coord + ivec2( 0,  1), size);
   ivec4 se = get_state(coord + ivec2( 1,  1), size);
 
+  // count neighbors that exist (have state) to see if we have any local observers
+  int existing_neighbor_count =
+    int(nw != NULL_CELL) +
+    int(n  != NULL_CELL) +
+    int(ne != NULL_CELL) +
+    int(e  != NULL_CELL) +
+    int(se != NULL_CELL) +
+    int(s  != NULL_CELL) +
+    int(sw != NULL_CELL) +
+    int(w  != NULL_CELL);
+
   if (last_cell == NULL_CELL) {
-    // count neighbors that exist (have state) to see if we have any local observers
-    int existing_neighbor_count = 
-      int(nw != NULL_CELL) +
-      int(n  != NULL_CELL) +
-      int(ne != NULL_CELL) +
-      int(e  != NULL_CELL) +
-      int(se != NULL_CELL) +
-      int(s  != NULL_CELL) +
-      int(sw != NULL_CELL) +
-      int(w  != NULL_CELL);
+    // a cell might come into existence while physics is ticking, but not when we're just cycling entropy
+    if (u_is_physics_ticking) {
+      // I do not exist. Am I observed?
+      bool is_observed = existing_neighbor_count > 0 || is_externally_observed(coord);
 
-    // I do not exist. Am I observed?
-    bool is_observed = existing_neighbor_count > 0 || is_externally_observed(coord);
+      // check if we might nucleate, and if so what are local conditions that could effect nucleated state
+      bool can_nucleate;
+      ivec2 entropy_pressure_vec;
+      if (!is_observed) {
+        // we're not observed, so check if we're nucleated instead
+        get_nucleation_conditions(coord, size, u_nucleation_threshold, can_nucleate, entropy_pressure_vec);
+      } else {
+        can_nucleate = false;
+      }
 
-    ivec2 pressure_vec;
-    bool is_nucleated = is_nucleation(coord, size, u_nucleation_threshold, pressure_vec);
+      if (is_observed || can_nucleate) {
+        // I am observed or can nucleate and will come into existence... but only if probability can collapse into state
+        ivec4 entropy = texelFetch(u_entropy, coord, 0);
+        if (entropy != NULL_CELL) {
+          // collapse probability into state
+          next_cell.r = int(float(entropy.r + 128) * INV_255 <= u_alive_probability);
 
-    // If I'm observed, is physics also ticking to convert probability into state?
-    if ((is_observed || is_nucleated) && u_is_physics_ticking) {
-      // I am observed, I will come into existence... but only if probability can collapse into state.
-      ivec4 entropy = texelFetch(u_entropy, coord, 0);
-      if (entropy != NULL_CELL) {
-        // collapse probability into state
-        next_cell.r = int(float(entropy.r + 128) * INV_255 <= u_alive_probability);
+          if (is_observed) {
+            // when observed into existence, hue is blended from the cell's entropy and existing neighbors
+            next_cell.gb = ivec2(normalize(vec2(
+              nw.gb +    n.gb    + ne.gb +
+               w.gb + entropy.gb +  e.gb +
+              sw.gb +    s.gb    + se.gb
 
-        // the hue vector of the cell's entropy is considered an outward force, while the combined with the pressure
-        // of the neighboring entropy that triggered the nucleation is considered an inwards force. the delta then
-        // determines the cell's initial hue
-        vec2 hue_delta = vec2(pressure_vec - entropy.gb);
-        if (dot(hue_delta, hue_delta) > NORMALIZE_EPSILON) {
-          next_cell.gb = ivec2(normalize(hue_delta) * 127.0);
-        } else {
-          next_cell.gb = DEFAULT_HUE;
-        }
+            // scale down hue sum before normalize to prevent overflow on GPUs (e.g. Galaxy Note)
+            // where built-in functions run at mediump (FP16) regardless of declared precision.
+            // max component sum is 3 * 127 = 381, so dot(v,v) can reach 290,322 which exceeds 
+            // FP16 max of 65,504. dividing by 4 keeps it safe, and since normalize only cares
+            // about direction, the result is unchanged.
+            ) / 4.0) * 127.0);
+          } else {
+            // we're not observed, so we must be nucleating
+            // the hue vector of the cell's entropy is considered an outward force, while the combined pressure of the
+            // neighboring entropy that triggered the nucleation is considered an inwards force. the delta then
+            // determines the cell's initial hue vector.
 
-        // make the cell barely visible, as it is just came into existence
-        if (next_cell.r == 0) {
-          saturation = 0.0;
-          lightness = 0.05;
-        } else {
-          saturation = 0.6;
-          lightness = 0.2;
+            vec2 hue_delta = vec2(entropy_pressure_vec - entropy.gb);
+            if (dot(hue_delta, hue_delta) > NORMALIZE_EPSILON) {
+              next_cell.gb = ivec2(normalize(hue_delta) * 127.0);
+            }
+          }
+          
+          if (next_cell.gb == NULL_HUE) {
+            next_cell.gb = DEFAULT_HUE;
+          }
+
+          // make the cell barely visible, as it is just came into existence
+          if (next_cell.r == 0) {
+            saturation = 0.0;
+            lightness = 0.05;
+          } else {
+            saturation = 0.6;
+            lightness = 0.2;
+          }
         }
       }
     } else {
@@ -326,7 +361,7 @@ void main() {
     }
   } else {
     // I exist. With a full Moore neighborhood I can tick.
-    if (has_sufficient_observability(neighbor_count)) {
+    if (has_sufficient_observability(existing_neighbor_count)) {
       // lookup own past
       uvec4 last_history = texelFetch(u_history, coord, 0);
       uvec4 last_osc_count_1 = texelFetch(u_osc_count_1, coord, 0);
