@@ -1,5 +1,5 @@
 #version 300 es
-// Conway's Game of Life without omnipresence
+// Conway's Game of Life with observation based cell existence
 
 precision mediump float;
 precision mediump int;
@@ -51,7 +51,7 @@ layout(location=1) out uvec4 history_out;
 layout(location=2) out uvec4 osc_count_out_1;
 layout(location=3) out vec4 cell_color_out;
 layout(location=4) out uvec4 osc_count_out_2;
-layout(location=5) out uvec2 min_osc_count;
+layout(location=5) out uvec2 min_osc_count_out;
 
 // set a lower bound on the number of oscillation repetitions, before a cell is has its saturation and lightness
 // modified. this prevents short bursts of random oscillations from being highlighted or dimmed
@@ -196,7 +196,7 @@ ivec4 get_state(ivec2 coord, ivec2 size) {
   return texelFetch(u_state, wrapped, 0);
 }
 
-uint getOscCount(uint history, uint p, uint prev_osc_count) {
+uint get_osc_count(uint history, uint p, uint prev_osc_count) {
   // check if the last [p] states match the previous [p] states
   uint mask = uint((1 << p) - 1);
   bool is_match = (history & mask) == ((history >> p) & mask);
@@ -213,9 +213,9 @@ bool is_externally_observed(ivec2 coord) {
   return coord.x >= u_observer_x1 && coord.x <= u_observer_x2 && coord.y >= u_observer_y1 && coord.y <= u_observer_y2;
 }
 
-bool has_sufficient_observability(int neighbor_count) {
+bool has_sufficient_observability(int existing_neighbor_count) {
   // GoL physics require full Moore neighborhood
-  return neighbor_count == 8;
+  return existing_neighbor_count == 8;
 }
 
 void find_min_p(uvec4 osc_count_1, uvec4 osc_count_2, out uint min_p, out uint max_len) {
@@ -264,20 +264,20 @@ void main() {
   ivec4 s  = get_state(coord + ivec2( 0,  1), size);
   ivec4 se = get_state(coord + ivec2( 1,  1), size);
 
-  // count neighbors that exist (have state)
-  int neighbor_count = 
-    int(nw != NULL_CELL) +
-    int(n  != NULL_CELL) +
-    int(ne != NULL_CELL) +
-    int(e  != NULL_CELL) +
-    int(se != NULL_CELL) +
-    int(s  != NULL_CELL) +
-    int(sw != NULL_CELL) +
-    int(w  != NULL_CELL);
-
   if (last_cell == NULL_CELL) {
+    // count neighbors that exist (have state) to see if we have any local observers
+    int existing_neighbor_count = 
+      int(nw != NULL_CELL) +
+      int(n  != NULL_CELL) +
+      int(ne != NULL_CELL) +
+      int(e  != NULL_CELL) +
+      int(se != NULL_CELL) +
+      int(s  != NULL_CELL) +
+      int(sw != NULL_CELL) +
+      int(w  != NULL_CELL);
+
     // I do not exist. Am I observed?
-    bool is_observed = neighbor_count > 0 || is_externally_observed(coord);
+    bool is_observed = existing_neighbor_count > 0 || is_externally_observed(coord);
 
     ivec2 pressure_vec;
     bool is_nucleated = is_nucleation(coord, size, u_nucleation_threshold, pressure_vec);
@@ -343,11 +343,11 @@ void main() {
 
         // count oscillators for most frequent periods
         // NOTE: min oscillator search MUST have increasing P value
-        next_osc_count_1[0] = getOscCount(next_history.r, OSCILLATOR_PERIODS[0], last_osc_count_1[0]);
-        next_osc_count_1[1] = getOscCount(next_history.r, OSCILLATOR_PERIODS[1], last_osc_count_1[1]);
-        next_osc_count_1[2] = getOscCount(next_history.r, OSCILLATOR_PERIODS[2], last_osc_count_1[2]);
-        next_osc_count_1[3] = getOscCount(next_history.r, OSCILLATOR_PERIODS[3], last_osc_count_1[3]);
-        next_osc_count_2[0] = getOscCount(next_history.r, OSCILLATOR_PERIODS[4], last_osc_count_2[0]);
+        next_osc_count_1[0] = get_osc_count(next_history.r, OSCILLATOR_PERIODS[0], last_osc_count_1[0]);
+        next_osc_count_1[1] = get_osc_count(next_history.r, OSCILLATOR_PERIODS[1], last_osc_count_1[1]);
+        next_osc_count_1[2] = get_osc_count(next_history.r, OSCILLATOR_PERIODS[2], last_osc_count_1[2]);
+        next_osc_count_1[3] = get_osc_count(next_history.r, OSCILLATOR_PERIODS[3], last_osc_count_1[3]);
+        next_osc_count_2[0] = get_osc_count(next_history.r, OSCILLATOR_PERIODS[4], last_osc_count_2[0]);
 
         // find min oscillator period, since a P2 is also P4, a P1 also P2, P3, etc.
         find_min_p(next_osc_count_1, next_osc_count_2, min_p, max_len);
@@ -454,7 +454,7 @@ void main() {
   history_out = next_history;
   osc_count_out_1 = next_osc_count_1;
   osc_count_out_2 = next_osc_count_2;
-  min_osc_count = next_min_osc_count;
+  min_osc_count_out = next_min_osc_count;
 }
 
 // hsl convert functions from here: https://github.com/Jam3/glsl-hsl2rgb/blob/master/index.glsl
