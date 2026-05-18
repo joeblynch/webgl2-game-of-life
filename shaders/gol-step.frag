@@ -216,8 +216,12 @@ uint get_osc_count(uint history, uint p, uint prev_osc_count) {
 }
 
 bool is_externally_observed(ivec2 coord) {
-  //ivec4 last_cell = texelFetch(u_state, coord, 0);
-  return coord.x >= u_observer_x1 && coord.x <= u_observer_x2 && coord.y >= u_observer_y1 && coord.y <= u_observer_y2;
+  ivec2 size = textureSize(u_state, 0);
+  int dx = abs(coord.x - u_observer_x1);
+  int dy = abs(coord.y - u_observer_y1);
+  dx = min(dx, size.x - dx);
+  dy = min(dy, size.y - dy);
+  return dx <= u_observer_x2 && dy <= u_observer_y2;
 }
 
 bool has_sufficient_observability(int existing_neighbor_count) {
@@ -483,8 +487,17 @@ void main() {
     hue_deg += 360.0;
   }
 
+  // convert hue angle to perceptually smooth RGB via cosine, then apply saturation and lightness
+  // float hue_norm = hue_deg * INV_360;
+  // vec3 pure_hue = 0.5 + 0.5 * cos(6.28318 * (hue_norm - vec3(0.0, 0.333, 0.667)));
+  // vec3 rgb = mix(vec3(lightness * u_existence), pure_hue * u_existence, saturation * u_existence);
+  // vec3 saturated = mix(vec3(1.0), pure_hue, saturation);  // desaturate toward white
+  // vec3 rgb = saturated * lightness * u_existence;          // then darken by lightness
+
+
   // copy outputs
   cell_color_out = vec4(hsl2rgb(hue_deg * INV_360, saturation * u_existence, lightness * u_existence), 1.0);
+  // cell_color_out = vec4(rgb, 1.0);
   cell_out = next_cell;
   history_out = next_history;
   osc_count_out_1 = next_osc_count_1;
