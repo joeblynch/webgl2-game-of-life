@@ -124,7 +124,6 @@ let _speedUpPressedAt = null;
 let _speedDownPressedAt = null;
 let _momentumVX = 0, _momentumVY = 0;
 let _momentumActive = false;
-let _underperformStart = 0;
 let _wasPaused = false;
 const _fpsEl = document.getElementById('fps');
 const _activeEl = document.getElementById('active');
@@ -180,7 +179,6 @@ updateSpeedDisplay();
       _stepBudget = 0;
       _stepsThisSecond = 0;
       _lastFPSUpdate = now;
-      _underperformStart = 0;
     }
 
     computeViewport();
@@ -216,17 +214,6 @@ updateSpeedDisplay();
       _fpsEl.innerText = _stepsThisSecond;
 
       updateSpeedDisplay();
-
-      // auto-downgrade: if actual < target * 0.9 for > 2 seconds
-      if (_stepsThisSecond < _targetFPS * 0.9) {
-        if (_underperformStart === 0) _underperformStart = now;
-        else if (now - _underperformStart > 2000) {
-          _targetFPS = _stepsThisSecond;
-          _underperformStart = 0;
-        }
-      } else {
-        _underperformStart = 0;
-      }
 
       _lastFPSUpdate = now;
       _stepsThisSecond = 0;
