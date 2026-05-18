@@ -311,7 +311,7 @@ void main() {
 
           if (is_observed) {
             // when observed into existence, hue is blended from the cell's entropy and existing neighbors
-            next_cell.gb = ivec2(normalize(vec2(
+            next_cell.gb = ivec2(round(normalize(vec2(
               nw.gb +    n.gb    + ne.gb +
                w.gb + entropy.gb +  e.gb +
               sw.gb +    s.gb    + se.gb
@@ -321,7 +321,7 @@ void main() {
             // max component sum is 3 * 127 = 381, so dot(v,v) can reach 290,322 which exceeds 
             // FP16 max of 65,504. dividing by 4 keeps it safe, and since normalize only cares
             // about direction, the result is unchanged.
-            ) / 4.0) * 127.0);
+            ) / 4.0) * 127.0));
           } else {
             // we're not observed, so we must be nucleating
             // the hue vector of the cell's entropy is considered an outward force, while the combined pressure of the
@@ -406,7 +406,7 @@ void main() {
         if (next_cell.r == 1 && (last_history.r & uint(1)) == uint(0) && min_p == uint(0)) {
           // cell is newly born, so it inherits its color from its three parents
           // calculate new hue vector by summing hue vectors of alive neighbors
-          next_cell.gb = ivec2(normalize(vec2(
+          next_cell.gb = ivec2(round(normalize(vec2(
             nw.r * nw.gb + n.r * n.gb + ne.r * ne.gb +
             w.r  *  w.gb +               e.r *  e.gb +
             sw.r * sw.gb + s.r * s.gb + se.r * se.gb
@@ -416,7 +416,7 @@ void main() {
           // max component sum is 3 * 127 = 381, so dot(v,v) can reach 290,322 which exceeds 
           // FP16 max of 65,504. dividing by 4 keeps it safe, and since normalize only cares
           // about direction, the result is unchanged.
-          ) / 4.0) * 127.0);
+          ) / 4.0)) * 127.0);
         } else {
           // surviving this step, maintain color
           next_cell.gb = last_cell.gb;
