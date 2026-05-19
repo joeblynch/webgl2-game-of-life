@@ -416,7 +416,7 @@ void main() {
           // max component sum is 3 * 127 = 381, so dot(v,v) can reach 290,322 which exceeds 
           // FP16 max of 65,504. dividing by 4 keeps it safe, and since normalize only cares
           // about direction, the result is unchanged.
-          ) / 4.0)) * 127.0);
+          ) / 4.0) * 127.0));
         } else {
           // surviving this step, maintain color
           next_cell.gb = last_cell.gb;
