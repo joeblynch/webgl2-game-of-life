@@ -491,19 +491,24 @@ void main() {
 
   // calculate the color from the hsl
   ivec2 hue_vec = next_cell != NULL_CELL ? next_cell.gb : entropy_hue_vec;
-  float hue_deg = atan(float(hue_vec.r), float(hue_vec.g)) * RAD_TO_DEG;
-  if (hue_shift > 0.0) {
+  float hue_deg = atan(float(hue_vec.g), float(hue_vec.r)) * RAD_TO_DEG;
+
+  if (hue_deg < 0.0) {
+    hue_deg += 360.0;
+  }
+
+  // shift the hue of oscillators
+  if (u_is_physics_ticking && hue_shift > 0.0) {
     vec2 shifted_hue_vec;
     hue_deg += hue_shift;
 
     shifted_hue_vec.x = cos(hue_deg * DEG_TO_RAD);
     shifted_hue_vec.y = sin(hue_deg * DEG_TO_RAD);
-    next_cell.gb = ivec2(normalize(shifted_hue_vec) * 127.0);
+    next_cell.gb = ivec2(round(normalize(shifted_hue_vec) * 127.0));
   }
   
-  if (hue_deg < 0.0) {
-    hue_deg += 360.0;
-  }
+  // avoid >360 degree hue. fine for now, could be problematic if changing hue2rgb
+  hue_deg = mod(hue_deg, 360.0);
 
   // convert hue angle to perceptually smooth RGB via cosine, then apply saturation and lightness
   // float hue_norm = hue_deg * INV_360;
