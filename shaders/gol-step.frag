@@ -34,6 +34,9 @@ uniform usampler2D u_history;
 uniform usampler2D u_osc_count_1;
 uniform usampler2D u_osc_count_2;
 
+// how fast the hue shifts for oscillators
+uniform float u_hue_shift;
+
 // after the universe ends, it fades out to black. this multiplier is used to reduce cell saturation and lightness
 uniform float u_existence;
 
@@ -259,6 +262,7 @@ void main() {
   uint min_p;
   ivec2 entropy_hue_vec;
   float saturation, lightness;
+  float hue_shift = 0.0;
 
   // lookup cell's last state
   ivec2 coord = ivec2(gl_FragCoord.xy);
@@ -446,6 +450,11 @@ void main() {
           saturation = SATURATION[recent] * saturation_scale;
           lightness = LIGHTNESS[recent] * lightness_scale;
         } else {
+          // oscillators are hue shifted at a speed relative to its P value
+          if (min_p > uint(1)) {
+            hue_shift = u_hue_shift * (float(min_p) - 1.0);
+          }
+
           saturation = SATURATION_OSC[min_p] * saturation_scale;
           lightness = LIGHTNESS_OSC[min_p] * lightness_scale;
         }
@@ -483,6 +492,15 @@ void main() {
   // calculate the color from the hsl
   ivec2 hue_vec = next_cell != NULL_CELL ? next_cell.gb : entropy_hue_vec;
   float hue_deg = atan(float(hue_vec.r), float(hue_vec.g)) * RAD_TO_DEG;
+  if (hue_shift > 0.0) {
+    vec2 shifted_hue_vec;
+    hue_deg += hue_shift;
+
+    shifted_hue_vec.x = cos(hue_deg * DEG_TO_RAD);
+    shifted_hue_vec.y = sin(hue_deg * DEG_TO_RAD);
+    next_cell.gb = ivec2(normalize(shifted_hue_vec) * 127.0);
+  }
+  
   if (hue_deg < 0.0) {
     hue_deg += 360.0;
   }
