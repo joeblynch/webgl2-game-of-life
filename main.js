@@ -600,7 +600,7 @@ function getActiveCells() {
 
   // sum only the universe-covering blocks
   const len = (readX - skipX) * (readY - skipY) * 4;
-  for (let i = 0; i < len; i++) {
+  for (let i = 0; i < len; i += 4) {
     active += _activeCounts[i];
   }
 
