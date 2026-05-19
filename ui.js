@@ -87,6 +87,7 @@ function updateConfig() {
   options.liOff = _lightness_off.toPrecision(3);
   options.satEntropy = _saturation_entropy.toPrecision(3);
   options.liEntropy = _lightness_entropy.toPrecision(3);
+  options.hueShift = _hueShift.toPrecision(2);
   options.texture = _textureMode;
   if (_uiHideDelay !== 3000) {
     options.uiHide = _uiHideDelay / 1000;
@@ -113,6 +114,7 @@ function saveConfig() {
       liOff: parseFloat(_lightness_off.toPrecision(3)),
       satEntropy: parseFloat(_saturation_entropy.toPrecision(3)),
       liEntropy: parseFloat(_lightness_entropy.toPrecision(3)),
+      hueShift: parseFloat(_hueShift.toPrecision(2)),
       texture: _textureMode
     }));
   } catch (e) {}
@@ -191,6 +193,8 @@ function openSettings() {
   document.getElementById('val-li-entropy').innerText = _lightness_entropy.toPrecision(3);
   document.getElementById('range-sat-entropy').value = _saturation_entropy;
   document.getElementById('val-sat-entropy').innerText = _saturation_entropy.toPrecision(3);
+  document.getElementById('range-hue-shift').value = _hueShift;
+  document.getElementById('val-hue-shift').innerText = _hueShift.toPrecision(2);
   document.getElementById('range-cell-size').value = _cellSize;
   document.getElementById('val-cell-size').innerText = _cellSize;
   const minCellSlider = document.getElementById('range-min-cell-size');
@@ -804,6 +808,7 @@ document.getElementById('btn-defaults').addEventListener('click', (e) => {
   _lightness_off = DEFAULT_LIGHTNESS_OFF;
   _saturation_entropy = DEFAULT_SATURATION_ENTROPY;
   _lightness_entropy = DEFAULT_LIGHTNESS_ENTROPY;
+  _hueShift = DEFAULT_HUE_SHIFT;
   _textureMode = DEFAULT_TEXTURE_MODE;
   _textureDescEl.innerText = TEXTURE_DESC[_textureMode];
   _zoom = 1 / _cellSize;
@@ -870,6 +875,12 @@ bindSlider('sat-entropy',
   () => _saturation_entropy,
   (v) => { _saturation_entropy = v; },
   (v) => v.toPrecision(3)
+);
+
+bindSlider('hue-shift',
+  () => _hueShift,
+  (v) => { _hueShift = v; },
+  (v) => v.toPrecision(2)
 );
 
 bindSlider('cell-size',

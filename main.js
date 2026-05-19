@@ -79,7 +79,7 @@ let _saturation_entropy = typeof options.satEntropy === 'number' ? options.satEn
 let _lightness_on = typeof options.liOn === 'number' ? options.liOn : DEFAULT_LIGHTNESS_ON;
 let _lightness_off = typeof options.liOff === 'number' ? options.liOff : DEFAULT_LIGHTNESS_OFF;
 let _lightness_entropy = typeof options.liEntropy === 'number' ? options.liEntropy : DEFAULT_LIGHTNESS_ENTROPY;
-let _hueShift = DEFAULT_HUE_SHIFT;
+let _hueShift = typeof options.hueShift === 'number' ? options.hueShift : DEFAULT_HUE_SHIFT;
 let _textureMode = options.texture >= 0 && options.texture < TEXTURE_MODES.length ? options.texture : DEFAULT_TEXTURE_MODE;
 let _gridWidth = options.width > 0 ? Math.floor(options.width) : 0;
 let _gridHeight = options.height > 0 ? Math.floor(options.height) : 0;
