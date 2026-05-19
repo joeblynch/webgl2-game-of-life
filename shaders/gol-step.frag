@@ -16,7 +16,7 @@ uniform float u_nucleation_threshold;
 uniform isampler2D u_state;
 
 // external observer's viewport
-uniform int u_observer_x1, u_observer_y1, u_observer_x2, u_observer_y2;
+uniform int u_observer_x1, u_observer_y1, u_observer_half_w, u_observer_half_h;
 // TODO: use full set of external observer's observation points
 // uniform isampler2D u_observer;
 
@@ -224,7 +224,7 @@ bool is_externally_observed(ivec2 coord) {
   int dy = abs(coord.y - u_observer_y1);
   dx = min(dx, size.x - dx);
   dy = min(dy, size.y - dy);
-  return dx <= u_observer_x2 && dy <= u_observer_y2;
+  return dx <= u_observer_half_w && dy <= u_observer_half_h;
 }
 
 bool has_sufficient_observability(int existing_neighbor_count) {

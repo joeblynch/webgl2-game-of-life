@@ -286,8 +286,8 @@ function step(isPhysicsTicking) {
   _drawCalls.golStep.uniform('u_existence', existence);
   _drawCalls.golStep.uniform('u_observer_x1', _observerX1);
   _drawCalls.golStep.uniform('u_observer_y1', _observerY1);
-  _drawCalls.golStep.uniform('u_observer_x2', _observerX2);
-  _drawCalls.golStep.uniform('u_observer_y2', _observerY2);
+  _drawCalls.golStep.uniform('u_observer_half_w', _observerX2);
+  _drawCalls.golStep.uniform('u_observer_half_h', _observerY2);
   _drawCalls.golStep.texture('u_state', _textures.state[backIndex]);
   _drawCalls.golStep.texture('u_history', _textures.history[backIndex]);
   _drawCalls.golStep.texture('u_entropy', _textures.entropy);
