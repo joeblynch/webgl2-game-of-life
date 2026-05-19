@@ -79,6 +79,7 @@ function updateConfig() {
   options.alive = _cellAliveProbability;
   options.nucleation = _nucleationThreshold;
   if (!_gridWidth && !_gridHeight) options.size = _cellSize;
+  if (!_gridWidth && !_gridHeight) options.minSize = _minCellSize;
   options.fps = _targetFPS;
   options.satOn = _saturation_on.toPrecision(3);
   options.satOff = _saturation_off.toPrecision(3);
@@ -103,6 +104,7 @@ function saveConfig() {
     localStorage.setItem('gol-config', JSON.stringify({
       alive: _cellAliveProbability,
       ...(!_gridWidth && !_gridHeight && { size: _cellSize }),
+      ...(!_gridWidth && !_gridHeight && { minSize: _minCellSize }),
       nucleation: _nucleationThreshold,
       fps: _targetFPS,
       satOn: parseFloat(_saturation_on.toPrecision(3)),
@@ -191,6 +193,10 @@ function openSettings() {
   document.getElementById('val-sat-entropy').innerText = _saturation_entropy.toPrecision(3);
   document.getElementById('range-cell-size').value = _cellSize;
   document.getElementById('val-cell-size').innerText = _cellSize;
+  const minCellSlider = document.getElementById('range-min-cell-size');
+  minCellSlider.max = _cellSize;
+  minCellSlider.value = _minCellSize;
+  document.getElementById('val-min-cell-size').innerText = _minCellSize;
   document.getElementById('range-alive').value = _cellAliveProbability;
   document.getElementById('val-alive').innerText = Math.round(_cellAliveProbability * 100) + '%';
   document.getElementById('range-nucleation').value = _nucleationThreshold;
@@ -785,11 +791,12 @@ document.getElementById('btn-close-settings').addEventListener('click', (e) => {
 
 document.getElementById('btn-defaults').addEventListener('click', (e) => {
   e.stopPropagation();
-  const needsRestart = _cellSize !== DEFAULT_CELL_SIZE;
+  const needsRestart = _cellSize !== DEFAULT_CELL_SIZE || _minCellSize !== DEFAULT_MIN_CELL_SIZE;
 
   _cellAliveProbability = DEFAULT_ALIVE_PROBABILITY;
   _nucleationThreshold = DEFAULT_NUCLEATION_THRESHOLD;
   _cellSize = DEFAULT_CELL_SIZE;
+  _minCellSize = DEFAULT_MIN_CELL_SIZE;
   _targetFPS = DEFAULT_TARGET_FPS;
   _saturation_on = DEFAULT_SATURATION_ON;
   _saturation_off = DEFAULT_SATURATION_OFF;
@@ -867,7 +874,23 @@ bindSlider('sat-entropy',
 
 bindSlider('cell-size',
   () => _cellSize,
-  (v) => { _cellSize = v; init(true); reset(); },
+  (v) => {
+    _cellSize = v;
+    const minSlider = document.getElementById('range-min-cell-size');
+    minSlider.max = _cellSize;
+    if (_minCellSize > _cellSize) {
+      _minCellSize = _cellSize;
+      minSlider.value = _minCellSize;
+      document.getElementById('val-min-cell-size').innerText = _minCellSize;
+    }
+    init(true); reset();
+  },
+  (v) => v.toString()
+);
+
+bindSlider('min-cell-size',
+  () => _minCellSize,
+  (v) => { _minCellSize = v; init(true); reset(); },
   (v) => v.toString()
 );
 

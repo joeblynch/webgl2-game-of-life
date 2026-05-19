@@ -2,6 +2,7 @@
 //       The magic happens in gol-step.frag.
 
 const DEFAULT_CELL_SIZE = 4; //Math.floor(2 * window.devicePixelRatio) + 1;
+const DEFAULT_MIN_CELL_SIZE = 1;
 const DEFAULT_ALIVE_PROBABILITY = 0.5;
 const DEFAULT_NUCLEATION_THRESHOLD = 0.93;
 const DEFAULT_TARGET_FPS = 15;
@@ -69,6 +70,7 @@ const options = parseHash();
 let _cellAliveProbability = options.alive >= 0 && options.alive <= 1 ? options.alive : DEFAULT_ALIVE_PROBABILITY;
 let _nucleationThreshold = options.nucleation >= 0 && options.nucleation <= 1 ? options.nucleation : DEFAULT_NUCLEATION_THRESHOLD;
 let _cellSize = options.size || DEFAULT_CELL_SIZE;
+let _minCellSize = options.minSize || DEFAULT_MIN_CELL_SIZE;
 let _targetFPS = typeof options.fps === 'number' ? options.fps : DEFAULT_TARGET_FPS;
 let _saturation_on = typeof options.satOn === 'number' ? options.satOn : DEFAULT_SATURATION_ON;
 let _saturation_off = typeof options.satOff === 'number' ? options.satOff : DEFAULT_SATURATION_OFF;
@@ -647,9 +649,9 @@ async function init(reInit = false) {
     }
   }
 
-  // max texture size = full screen pixel resolution (1 cell per pixel at max zoom-out)
-  _maxWidth = Math.floor(width);
-  _maxHeight = Math.floor(height);
+  // max texture size = screen pixel resolution / minCellSize
+  _maxWidth = Math.floor(width / _minCellSize);
+  _maxHeight = Math.floor(height / _minCellSize);
 
   if (!reInit) {
     const canvasEl = document.getElementById('c');
