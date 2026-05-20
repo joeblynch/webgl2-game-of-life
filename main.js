@@ -70,6 +70,7 @@ const _textures = {};
 const options = parseHash();
 let _cellAliveProbability = options.alive >= 0 && options.alive <= 1 ? options.alive : DEFAULT_ALIVE_PROBABILITY;
 let _nucleationThreshold = options.nucleation >= 0 && options.nucleation <= 1 ? options.nucleation : DEFAULT_NUCLEATION_THRESHOLD;
+let _nucleationEnabled = options.nucleate !== 0;
 let _cellSize = options.size || DEFAULT_CELL_SIZE;
 let _minCellSize = options.minSize || DEFAULT_MIN_CELL_SIZE;
 let _targetFPS = typeof options.fps === 'number' ? options.fps : DEFAULT_TARGET_FPS;
@@ -275,7 +276,7 @@ function step(isPhysicsTicking) {
 
   _drawCalls.golStep.uniform('u_is_physics_ticking', isPhysicsTicking ? 1 : 0);
   _drawCalls.golStep.uniform('u_alive_probability', _cellAliveProbability);
-  _drawCalls.golStep.uniform('u_nucleation_enabled', 1);
+  _drawCalls.golStep.uniform('u_nucleation_enabled', _nucleationEnabled ? 1 : 0);
   _drawCalls.golStep.uniform('u_nucleation_threshold', _nucleationThreshold);
   _drawCalls.golStep.uniform('u_saturation_on', _saturation_on);
   _drawCalls.golStep.uniform('u_saturation_off', _saturation_off);

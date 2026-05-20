@@ -89,6 +89,7 @@ function updateConfig() {
   options.hueShift = _hueShift.toPrecision(2);
   options.texture = _textureMode;
   options.observer = _observerMode;
+  options.nucleate = _nucleationEnabled ? 1 : 0;
   if (_uiHideDelay !== 3000) {
     options.uiHide = _uiHideDelay / 1000;
   }
@@ -116,7 +117,8 @@ function saveConfig() {
       liEntropy: parseFloat(_lightness_entropy.toPrecision(3)),
       hueShift: parseFloat(_hueShift.toPrecision(2)),
       texture: _textureMode,
-      observer: _observerMode
+      observer: _observerMode,
+      nucleate: _nucleationEnabled ? 1 : 0
     }));
   } catch (e) {}
 }
@@ -693,6 +695,8 @@ function syncObserverUI() {
   for (const btn of _observerPopup.querySelectorAll('button[data-mode]')) {
     btn.setAttribute('aria-checked', btn.dataset.mode === _observerMode ? 'true' : 'false');
   }
+  _observerPopup.querySelector('button[data-toggle="nucleation"]')
+    .setAttribute('aria-checked', _nucleationEnabled ? 'true' : 'false');
 }
 
 function openObserverPopup() {
@@ -730,13 +734,22 @@ _observerBtn.addEventListener('click', (e) => {
 });
 
 _observerPopup.addEventListener('click', (e) => {
-  const btn = e.target.closest('button[data-mode]');
-  if (!btn) return;
-  e.stopPropagation();
-  _observerMode = btn.dataset.mode;
-  syncObserverUI();
-  updateConfig();
-  closeObserverPopup();
+  const modeBtn = e.target.closest('button[data-mode]');
+  if (modeBtn) {
+    e.stopPropagation();
+    _observerMode = modeBtn.dataset.mode;
+    syncObserverUI();
+    updateConfig();
+    closeObserverPopup();
+    return;
+  }
+  const toggleBtn = e.target.closest('button[data-toggle="nucleation"]');
+  if (toggleBtn) {
+    e.stopPropagation();
+    _nucleationEnabled = !_nucleationEnabled;
+    syncObserverUI();
+    updateConfig();
+  }
 });
 
 syncObserverUI();

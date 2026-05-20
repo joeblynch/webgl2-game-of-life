@@ -189,6 +189,12 @@
         opacity: 1;
       }
 
+      .observer-popup .popup-divider {
+        border: none;
+        border-top: 1px solid rgba(255, 255, 255, 0.15);
+        margin: 4px 0;
+      }
+
       .settings-drawer {
         position: fixed;
         bottom: 0;
@@ -401,6 +407,8 @@
       <button data-mode="touch" role="menuitemradio" aria-checked="true"><span class="check">✓</span> 👆 Touch</button>
       <button data-mode="eye" role="menuitemradio" aria-checked="false"><span class="check">✓</span> 👁️ Eye</button>
       <button data-mode="center" role="menuitemradio" aria-checked="false"><span class="check">✓</span> ☀ Center</button>
+      <hr class="popup-divider">
+      <button data-toggle="nucleation" role="menuitemcheckbox" aria-checked="true"><span class="check">✓</span> 🫧 Nucleation</button>
     </div>
     <div id="menu-popup" class="menu-popup" role="menu">
       <a href="https://github.com/joeblynch/webgl2-game-of-life" target="_blank" role="menuitem">View on GitHub</a>
