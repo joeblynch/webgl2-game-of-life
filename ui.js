@@ -302,12 +302,7 @@ document.addEventListener('keydown', (e) => {
       toggleFullscreen();
       break;
     case 82:  // r
-      if (e.shiftKey) {
-        reset();
-      } else {
-        _generation = START_GENERATION;
-        _endedGeneration = -1;
-      }
+      if (e.shiftKey) reset();
       break;
     case 84:  // t
       _textureMode = (_textureMode + 1) % TEXTURE_MODES.length;
@@ -767,13 +762,6 @@ document.getElementById('btn-menu').addEventListener('click', (e) => {
   } else {
     openMenu();
   }
-});
-
-document.getElementById('menu-replay').addEventListener('click', (e) => {
-  e.stopPropagation();
-  _generation = START_GENERATION;
-  _endedGeneration = -1;
-  closeMenu();
 });
 
 document.getElementById('menu-texture').addEventListener('click', (e) => {
