@@ -3,7 +3,6 @@ const ADJ_STEP = 0.005;
 const _toolbarEl = document.getElementById('toolbar');
 const _settingsDrawerEl = document.getElementById('settings-drawer');
 const _menuEl = document.getElementById('menu-popup');
-const _btnPlay = document.getElementById('btn-play');
 
 let _uiHideDelay;
 let _autoHideTimer = null;
@@ -89,6 +88,7 @@ function updateConfig() {
   options.liEntropy = _lightness_entropy.toPrecision(3);
   options.hueShift = _hueShift.toPrecision(2);
   options.texture = _textureMode;
+  options.observer = _observerMode;
   if (_uiHideDelay !== 3000) {
     options.uiHide = _uiHideDelay / 1000;
   }
@@ -115,7 +115,8 @@ function saveConfig() {
       satEntropy: parseFloat(_saturation_entropy.toPrecision(3)),
       liEntropy: parseFloat(_lightness_entropy.toPrecision(3)),
       hueShift: parseFloat(_hueShift.toPrecision(2)),
-      texture: _textureMode
+      texture: _textureMode,
+      observer: _observerMode
     }));
   } catch (e) {}
 }
@@ -128,18 +129,19 @@ function isToolbarVisible() {
 
 function showToolbar() {
   _toolbarEl.classList.add('visible');
-  syncPlayButton();
   resetAutoHide();
 }
 
 function hideToolbar() {
   _toolbarEl.classList.remove('visible');
   closeMenu();
+  closeObserverPopup();
   closeSettings();
   clearAutoHide();
 }
 
 function openMenu() {
+  closeObserverPopup();
   syncMenuStatus();
   _menuEl.classList.add('visible');
   document.getElementById('btn-menu').setAttribute('aria-expanded', 'true');
@@ -166,7 +168,7 @@ function toggleToolbar() {
 
 function resetAutoHide() {
   clearAutoHide();
-  if (_uiHideDelay > 0 && !isSettingsOpen() && !isMenuOpen() && !_cursorOverUI) {
+  if (_uiHideDelay > 0 && !isSettingsOpen() && !isMenuOpen() && !isObserverPopupOpen() && !_cursorOverUI) {
     _autoHideTimer = setTimeout(hideToolbar, _uiHideDelay);
   }
 }
@@ -219,12 +221,6 @@ function isSettingsOpen() {
   return _settingsDrawerEl.classList.contains('visible');
 }
 
-// ─── Play button sync ───
-
-function syncPlayButton() {
-  _btnPlay.innerText = _running ? '⏸\uFE0E' : '▶\uFE0E';
-}
-
 // ─── UI functions (moved from main.js) ───
 
 function toggleFullscreen() {
@@ -257,7 +253,6 @@ document.addEventListener('keydown', (e) => {
   switch (e.which) {
     case 32:  // SPACE
       _running = !_running;
-      syncPlayButton();
       break;
     case 38:  // UP
     case 61:  // + (FF)
@@ -602,13 +597,6 @@ if (window.matchMedia('(pointer: fine)').matches) {
 
 // ─── Toolbar button handlers ───
 
-document.getElementById('btn-play').addEventListener('click', (e) => {
-  e.stopPropagation();
-  _running = !_running;
-  syncPlayButton();
-  resetAutoHide();
-});
-
 function speedClick(direction) {
   const displayed = Math.round(_targetFPS);
   _targetFPS = Math.max(1, displayed + direction);
@@ -680,12 +668,11 @@ _btnFaster.addEventListener('touchend', (e) => {
   resetAutoHide();
 });
 
-document.getElementById('btn-reset').addEventListener('click', (e) => {
+document.getElementById('menu-reset').addEventListener('click', (e) => {
   e.stopPropagation();
   reset();
   _running = true;
-  syncPlayButton();
-  resetAutoHide();
+  closeMenu();
 });
 
 document.getElementById('btn-fullscreen').addEventListener('click', (e) => {
@@ -694,26 +681,65 @@ document.getElementById('btn-fullscreen').addEventListener('click', (e) => {
   resetAutoHide();
 });
 
-// ─── Observer/entropy mode toggles ───
+// ─── Observer mode dropdown ───
 
-function setModeButton(groupPrefix, mode) {
-  document.getElementById(groupPrefix + '-touch').classList.toggle('active', mode === 'touch');
-  document.getElementById(groupPrefix + '-eye').classList.toggle('active', mode === 'eye');
+const OBSERVER_LABELS = { touch: '👆', eye: '👁️', center: '☀' };
+const _observerBtn = document.getElementById('btn-observer');
+const _observerPopup = document.getElementById('observer-popup');
+const _observerCurrentEl = document.getElementById('observer-current');
+
+function syncObserverUI() {
+  _observerCurrentEl.textContent = OBSERVER_LABELS[_observerMode];
+  for (const btn of _observerPopup.querySelectorAll('button[data-mode]')) {
+    btn.setAttribute('aria-checked', btn.dataset.mode === _observerMode ? 'true' : 'false');
+  }
 }
 
-document.getElementById('btn-observer-touch').addEventListener('click', (e) => {
-  e.stopPropagation();
-  _observerMode = 'touch';
-  setModeButton('btn-observer', 'touch');
+function openObserverPopup() {
+  closeMenu();
+  // Anchor left edge of popup to the trigger button's left edge,
+  // but clamp so it doesn't overflow the viewport.
+  const rect = _observerBtn.getBoundingClientRect();
+  _observerPopup.style.left = rect.left + 'px';
+  _observerPopup.classList.add('visible');
+  // Re-measure and clamp once visible (popup width is known now).
+  const popupRect = _observerPopup.getBoundingClientRect();
+  const maxLeft = window.innerWidth - popupRect.width - 8;
+  if (rect.left > maxLeft) _observerPopup.style.left = Math.max(8, maxLeft) + 'px';
+  _observerBtn.setAttribute('aria-expanded', 'true');
+  clearAutoHide();
+}
+
+function closeObserverPopup() {
+  _observerPopup.classList.remove('visible');
+  _observerBtn.setAttribute('aria-expanded', 'false');
   resetAutoHide();
+}
+
+function isObserverPopupOpen() {
+  return _observerPopup.classList.contains('visible');
+}
+
+_observerBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (isObserverPopupOpen()) {
+    closeObserverPopup();
+  } else {
+    openObserverPopup();
+  }
 });
 
-document.getElementById('btn-observer-eye').addEventListener('click', (e) => {
+_observerPopup.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-mode]');
+  if (!btn) return;
   e.stopPropagation();
-  _observerMode = 'eye';
-  setModeButton('btn-observer', 'eye');
-  resetAutoHide();
+  _observerMode = btn.dataset.mode;
+  syncObserverUI();
+  updateConfig();
+  closeObserverPopup();
 });
+
+syncObserverUI();
 
 // ─── Hamburger menu ───
 
@@ -753,15 +779,17 @@ document.getElementById('menu-settings').addEventListener('click', (e) => {
   openSettings();
 });
 
-// close menu on click outside
+// close popups on click outside
 document.addEventListener('click', () => {
   if (isMenuOpen()) closeMenu();
+  if (isObserverPopupOpen()) closeObserverPopup();
 });
 
 // close menu on Escape
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     if (isMenuOpen()) { closeMenu(); e.preventDefault(); }
+    else if (isObserverPopupOpen()) { closeObserverPopup(); e.preventDefault(); }
     else if (isSettingsOpen()) { closeSettings(); e.preventDefault(); }
   }
 });

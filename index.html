@@ -121,11 +121,6 @@
         flex-shrink: 0;
       }
 
-      #btn-play {
-        border-radius: 50%;
-        margin-right: 8px;
-      }
-
       .ui-label {
         font-size: 9px;
         color: rgba(255, 255, 255, 0.5);
@@ -159,34 +154,39 @@
 
       .toolbar-gap { flex: 1; }
 
-      .mode-toggles {
-        display: flex;
-        gap: 8px;
-        margin: 0 8px;
-      }
-
-      .mode-toggle {
+      .observer-control {
         display: flex;
         flex-direction: column;
         align-items: center;
         gap: 0;
+        margin: 0 4px;
       }
 
-      .mode-buttons {
-        display: flex;
-        gap: 2px;
+      .toolbar-buttons .observer-btn {
+        font-size: 14px;
+        padding: 0 10px;
+        min-width: 0;
       }
 
-      .mode-btn {
-        min-width: 36px;
-        min-height: 36px;
-        font-size: 16px;
-        opacity: 0.4;
+      .observer-btn .caret {
+        opacity: 0.6;
+        margin-left: 4px;
       }
 
-      .mode-btn.active {
+      .menu-popup.observer-popup {
+        right: auto;
+        min-width: 0;
+      }
+
+      .observer-popup .check {
+        display: inline-block;
+        width: 14px;
+        opacity: 0;
+        color: #af0;
+      }
+
+      .observer-popup button[aria-checked="true"] .check {
         opacity: 1;
-        border-color: #af0;
       }
 
       .settings-drawer {
@@ -378,7 +378,6 @@
     <canvas id="c"></canvas>
     <div id="toolbar" class="toolbar visible">
       <div class="toolbar-buttons">
-        <button id="btn-play" title="Play / Pause [space]">⏸︎</button>
         <div class="speed-control">
           <span class="ui-label">speed</span>
           <div class="speed-row">
@@ -387,24 +386,26 @@
             <button id="btn-faster" title="Faster [↑/+]">+</button>
           </div>
         </div>
-        <div class="mode-toggles">
-          <div class="mode-toggle">
-            <span class="ui-label">observer</span>
-            <div class="mode-buttons">
-              <button id="btn-observer-touch" class="mode-btn active" title="Touch observer">👆</button>
-              <button id="btn-observer-eye" class="mode-btn" title="Eye observer">👁️</button>
-            </div>
-          </div>
+        <div class="observer-control">
+          <span class="ui-label">observer</span>
+          <button id="btn-observer" class="observer-btn" title="Observer mode" aria-expanded="false" aria-haspopup="true">
+            <span id="observer-current">👆</span> <span class="caret">▾</span>
+          </button>
         </div>
         <div class="toolbar-gap"></div>
-        <button id="btn-reset" title="Reload [shift+r]">↻</button>
         <button id="btn-fullscreen" title="Fullscreen [f]">⛶</button>
         <button id="btn-menu" title="Menu" aria-expanded="false" aria-haspopup="true">☰</button>
       </div>
     </div>
+    <div id="observer-popup" class="menu-popup observer-popup" role="menu">
+      <button data-mode="touch" role="menuitemradio" aria-checked="true"><span class="check">✓</span> 👆 Touch</button>
+      <button data-mode="eye" role="menuitemradio" aria-checked="false"><span class="check">✓</span> 👁️ Eye</button>
+      <button data-mode="center" role="menuitemradio" aria-checked="false"><span class="check">✓</span> ☀ Center</button>
+    </div>
     <div id="menu-popup" class="menu-popup" role="menu">
       <a href="https://github.com/joeblynch/webgl2-game-of-life" target="_blank" role="menuitem">View on GitHub</a>
       <button id="menu-install" role="menuitem" style="display:none">Add to home screen</button>
+      <button id="menu-reset" role="menuitem">New universe <span class="shortcut">[shift+r]</span></button>
       <button id="menu-replay" role="menuitem">Replay universe <span class="shortcut">[r]</span></button>
       <button id="menu-texture" role="menuitem">Change texture <span class="shortcut">[t]/[1-8]</span></button>
       <button id="menu-status" role="menuitem">Show status <span class="shortcut">[s]</span></button>

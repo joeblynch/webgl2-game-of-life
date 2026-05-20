@@ -100,9 +100,9 @@ let _activeFramebuffer;
 let _readFramebuffer;
 let _clearFramebuffer;
 let _generation = START_GENERATION;
-let _observerMode = 'touch';
+let _observerMode = ['touch', 'eye', 'center'].includes(options.observer) ? options.observer : 'touch';
 let _entropyMode = 'eye';
-let _observerX1 = -1, _observerY1 = -1, _observerX2 = -1, _observerY2 = -1;
+let _observerX1 = -1, _observerY1 = -1, _observerHalfW = -1, _observerHalfH = -1;
 let _touchTexX = -1, _touchTexY = -1;
 let _entropySource;
 let _resetting = false;
@@ -286,8 +286,8 @@ function step(isPhysicsTicking) {
   _drawCalls.golStep.uniform('u_existence', existence);
   _drawCalls.golStep.uniform('u_observer_x1', _observerX1);
   _drawCalls.golStep.uniform('u_observer_y1', _observerY1);
-  _drawCalls.golStep.uniform('u_observer_half_w', _observerX2);
-  _drawCalls.golStep.uniform('u_observer_half_h', _observerY2);
+  _drawCalls.golStep.uniform('u_observer_half_w', _observerHalfW);
+  _drawCalls.golStep.uniform('u_observer_half_h', _observerHalfH);
   _drawCalls.golStep.texture('u_state', _textures.state[backIndex]);
   _drawCalls.golStep.texture('u_history', _textures.history[backIndex]);
   _drawCalls.golStep.texture('u_entropy', _textures.entropy);
@@ -301,22 +301,25 @@ function step(isPhysicsTicking) {
 }
 
 function computeObserver() {
-  // Observer uniforms are reinterpreted as (centerX, centerY, halfW, halfH)
-  // to support modular distance checks for torus wrapping in the shader.
   if (_observerMode === 'eye') {
-    _observerX1 = Math.floor(_panX);  // center X (already normalized to [0, max) by computeViewport)
-    _observerY1 = Math.floor(_panY);  // center Y
+    _observerX1 = Math.floor(_panX);  // already normalized to [0, max) by computeViewport
+    _observerY1 = Math.floor(_panY);
     const viewW = _viewX2 - _viewX1;
     const viewH = _viewY2 - _viewY1;
-    _observerX2 = Math.min(Math.ceil(viewW / 2) + 1, Math.floor(_maxWidth / 2));
-    _observerY2 = Math.min(Math.ceil(viewH / 2) + 1, Math.floor(_maxHeight / 2));
+    _observerHalfW = Math.min(Math.ceil(viewW / 2) + 1, Math.floor(_maxWidth / 2));
+    _observerHalfH = Math.min(Math.ceil(viewH / 2) + 1, Math.floor(_maxHeight / 2));
+  } else if (_observerMode === 'center') {
+    _observerX1 = _maxWidth >> 1;
+    _observerY1 = _maxHeight >> 1;
+    _observerHalfW = 0;
+    _observerHalfH = 0;
   } else if (_touchTexX >= 0) {
     _observerX1 = _touchTexX;  // already wrapped by screenToTexture
     _observerY1 = _touchTexY;
-    _observerX2 = 0;  // half-width 0 = single cell
-    _observerY2 = 0;
+    _observerHalfW = 0;
+    _observerHalfH = 0;
   } else {
-    _observerX1 = _observerY1 = _observerX2 = _observerY2 = -1;
+    _observerX1 = _observerY1 = _observerHalfW = _observerHalfH = -1;
   }
 }
 
