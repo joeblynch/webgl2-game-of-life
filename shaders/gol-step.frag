@@ -40,6 +40,9 @@ uniform usampler2D u_osc_count_2;
 // how fast the hue shifts for oscillators
 uniform float u_hue_shift;
 
+// how much a cell coming into existence has its hue defined by neighbors versus entropy
+uniform float u_entropy_hue_weight;
+
 // after the universe ends, it fades out to black. this multiplier is used to reduce cell saturation and lightness
 uniform float u_existence;
 
@@ -318,10 +321,10 @@ void main() {
 
           if (is_observed) {
             // when observed into existence, hue is blended from the cell's entropy and existing neighbors
-            next_cell.gb = ivec2(round(normalize(vec2(
-              nw.gb +    n.gb    + ne.gb +
-               w.gb + entropy.gb +  e.gb +
-              sw.gb +    s.gb    + se.gb
+            ivec2 neighborhood_hue = ivec2(round(normalize(vec2(
+             nw.gb + n.gb + ne.gb +
+              w.gb +         e.gb +
+             sw.gb + s.gb + se.gb
 
             // scale down hue sum before normalize to prevent overflow on GPUs (e.g. Galaxy Note)
             // where built-in functions run at mediump (FP16) regardless of declared precision.
@@ -329,6 +332,8 @@ void main() {
             // FP16 max of 65,504. dividing by 4 keeps it safe, and since normalize only cares
             // about direction, the result is unchanged.
             ) / 4.0) * 127.0));
+
+            next_cell.gb = ivec2(mix(vec2(neighborhood_hue), vec2(entropy.gb), u_entropy_hue_weight));
           } else {
             // we're not observed, so we must be nucleating
             // the hue vector of the cell's entropy is considered an outward force, while the combined pressure of the

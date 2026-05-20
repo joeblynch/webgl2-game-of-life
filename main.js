@@ -5,6 +5,7 @@ const DEFAULT_CELL_SIZE = 4; //Math.floor(2 * window.devicePixelRatio) + 1;
 const DEFAULT_MIN_CELL_SIZE = 1;
 const DEFAULT_ALIVE_PROBABILITY = 0.5;
 const DEFAULT_NUCLEATION_THRESHOLD = 0.93;
+const DEFAULT_ENTROPY_HUE_WEIGHT = 0.42;
 const DEFAULT_TARGET_FPS = 15;
 const DEFAULT_SATURATION_ON = 0.98;
 const DEFAULT_LIGHTNESS_ON = 0.76;
@@ -81,6 +82,7 @@ let _lightness_on = typeof options.liOn === 'number' ? options.liOn : DEFAULT_LI
 let _lightness_off = typeof options.liOff === 'number' ? options.liOff : DEFAULT_LIGHTNESS_OFF;
 let _lightness_entropy = typeof options.liEntropy === 'number' ? options.liEntropy : DEFAULT_LIGHTNESS_ENTROPY;
 let _hueShift = typeof options.hueShift === 'number' ? options.hueShift : DEFAULT_HUE_SHIFT;
+let _entropyHueWeight = typeof options.entropyHueWeight === 'number' ? options.entropyHueWeight : DEFAULT_ENTROPY_HUE_WEIGHT;
 let _textureMode = options.texture >= 0 && options.texture < TEXTURE_MODES.length ? options.texture : DEFAULT_TEXTURE_MODE;
 let _gridWidth = options.width > 0 ? Math.floor(options.width) : 0;
 let _gridHeight = options.height > 0 ? Math.floor(options.height) : 0;
@@ -285,6 +287,7 @@ function step(isPhysicsTicking) {
   _drawCalls.golStep.uniform('u_lightness_off', _lightness_off);
   _drawCalls.golStep.uniform('u_lightness_entropy', _lightness_entropy);
   _drawCalls.golStep.uniform('u_hue_shift', _hueShift);
+  _drawCalls.golStep.uniform('u_entropy_hue_weight', _entropyHueWeight);
   _drawCalls.golStep.uniform('u_existence', existence);
   _drawCalls.golStep.uniform('u_observer_x1', _observerX1);
   _drawCalls.golStep.uniform('u_observer_y1', _observerY1);
