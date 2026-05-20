@@ -87,6 +87,7 @@ function updateConfig() {
   options.satEntropy = _saturation_entropy.toPrecision(3);
   options.liEntropy = _lightness_entropy.toPrecision(3);
   options.hueShift = _hueShift.toPrecision(2);
+  options.entropyHueWeight = _entropyHueWeight.toPrecision(3);
   options.texture = _textureMode;
   options.observer = _observerMode;
   options.nucleate = _nucleationEnabled ? 1 : 0;
@@ -116,6 +117,7 @@ function saveConfig() {
       satEntropy: parseFloat(_saturation_entropy.toPrecision(3)),
       liEntropy: parseFloat(_lightness_entropy.toPrecision(3)),
       hueShift: parseFloat(_hueShift.toPrecision(2)),
+      entropyHueWeight: parseFloat(_entropyHueWeight.toPrecision(3)),
       texture: _textureMode,
       observer: _observerMode,
       nucleate: _nucleationEnabled ? 1 : 0
@@ -199,6 +201,8 @@ function openSettings() {
   document.getElementById('val-sat-entropy').innerText = _saturation_entropy.toPrecision(3);
   document.getElementById('range-hue-shift').value = _hueShift;
   document.getElementById('val-hue-shift').innerText = _hueShift.toPrecision(2);
+  document.getElementById('range-entropy-hue-weight').value = _entropyHueWeight;
+  document.getElementById('val-entropy-hue-weight').innerText = _entropyHueWeight.toPrecision(3);
   document.getElementById('range-cell-size').value = _cellSize;
   document.getElementById('val-cell-size').innerText = _cellSize;
   const minCellSlider = document.getElementById('range-min-cell-size');
@@ -850,6 +854,7 @@ document.getElementById('btn-defaults').addEventListener('click', (e) => {
   _saturation_entropy = DEFAULT_SATURATION_ENTROPY;
   _lightness_entropy = DEFAULT_LIGHTNESS_ENTROPY;
   _hueShift = DEFAULT_HUE_SHIFT;
+  _entropyHueWeight = DEFAULT_ENTROPY_HUE_WEIGHT;
   _textureMode = DEFAULT_TEXTURE_MODE;
   _textureDescEl.innerText = TEXTURE_DESC[_textureMode];
   _zoom = 1 / _cellSize;
@@ -922,6 +927,12 @@ bindSlider('hue-shift',
   () => _hueShift,
   (v) => { _hueShift = v; },
   (v) => v.toPrecision(2)
+);
+
+bindSlider('entropy-hue-weight',
+  () => _entropyHueWeight,
+  (v) => { _entropyHueWeight = v; },
+  (v) => v.toPrecision(3)
 );
 
 bindSlider('cell-size',
