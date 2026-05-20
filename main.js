@@ -275,6 +275,7 @@ function step(isPhysicsTicking) {
 
   _drawCalls.golStep.uniform('u_is_physics_ticking', isPhysicsTicking ? 1 : 0);
   _drawCalls.golStep.uniform('u_alive_probability', _cellAliveProbability);
+  _drawCalls.golStep.uniform('u_nucleation_enabled', 1);
   _drawCalls.golStep.uniform('u_nucleation_threshold', _nucleationThreshold);
   _drawCalls.golStep.uniform('u_saturation_on', _saturation_on);
   _drawCalls.golStep.uniform('u_saturation_off', _saturation_off);

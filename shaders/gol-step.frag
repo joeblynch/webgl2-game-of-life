@@ -26,6 +26,9 @@ uniform float u_alive_probability;
 // is physics ticking inside the universe, or are we just rendering entropy fluctuations?
 uniform bool u_is_physics_ticking;
 
+// spontaneous nucleation can kick off the universe without external observation
+uniform bool u_nucleation_enabled;
+
 // the last 32 on/off states of each cell are remembered, to detect oscillators of up to 16P
 uniform usampler2D u_history;
 
@@ -299,7 +302,7 @@ void main() {
       // check if we might nucleate, and if so what are local conditions that could effect nucleated state
       bool can_nucleate;
       ivec2 entropy_pressure_vec;
-      if (!is_observed) {
+      if (u_nucleation_enabled && !is_observed) {
         // we're not observed, so check if we're nucleated instead
         get_nucleation_conditions(coord, size, u_nucleation_threshold, can_nucleate, entropy_pressure_vec);
       } else {
